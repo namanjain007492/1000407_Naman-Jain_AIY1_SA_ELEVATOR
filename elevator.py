@@ -1,196 +1,148 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import openai
 
 # ==========================================
-# PAGE CONFIGURATION (Premium Look)
+# PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="Smarter Elevator Maintenance",
-    page_icon="🛗",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Elevator Sentinel Pro",
+    page_icon="🏗️",
+    layout="wide"
 )
 
+# Custom CSS for a dark, premium industrial feel
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stMetric { background-color: #161b22; border-radius: 10px; padding: 15px; border: 1px solid #30363d; }
+    </style>
+    """, unsafe_allow_safe: True)
+
 # ==========================================
-# DATA LOADING & CLEANING (Stage 2)
+# DATA LOADING (Stage 2)
 # ==========================================
 @st.cache_data
-def load_and_clean_data():
-    # Load dataset
+def load_data():
     df = pd.read_csv("Elevator predictive-maintenance-dataset.csv")
-    
-    # Store raw length
-    raw_len = len(df)
-    
-    # Clean Data: Drop nulls in the target variable 'vibration'
     df_clean = df.dropna(subset=['vibration']).copy()
-    
-    # Drop duplicates if any
-    df_clean = df_clean.drop_duplicates()
-    
-    return df, df_clean, raw_len
+    return df_clean
 
-df_raw, df, raw_len = load_and_clean_data()
+try:
+    df = load_data()
+except Exception as e:
+    st.error(f"Error loading data: {e}")
+    st.stop()
 
 # ==========================================
-# SIDEBAR NAVIGATION
+# SIDEBAR
 # ==========================================
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=80)
-st.sidebar.title("Elevator OS")
-page = st.sidebar.radio("Navigate", 
-    ["📖 Project Context", "🧹 Data Overview", "📊 Visual Analytics", "💡 Key Insights", "🤖 AI Assistant (Premium)"]
-)
-
+st.sidebar.title("🏗️ Sentinel Pro")
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Target Variable:** Vibration")
-st.sidebar.markdown(f"**Cleaned Records:** {len(df):,}")
+menu = st.sidebar.selectbox("Dashboard Modules", 
+    ["Live Fleet Status", "3D Movement Analysis", "Statistical Trends", "AI Maintenance Assistant"])
+
+vibration_threshold = st.sidebar.slider("Anomaly Threshold (Vibration)", 0, 100, 45)
 
 # ==========================================
-# PAGE 1: PROJECT CONTEXT (Stage 1)
+# MODULE 1: LIVE FLEET STATUS
 # ==========================================
-if page == "📖 Project Context":
-    st.title("🛗 Smarter Elevator Movement Visualization")
-    st.markdown("""
-    ### The Real-World Engineering Problem
-    This platform addresses the **Predictive Maintenance of Elevators**. 
-    Instead of waiting for an elevator door to jam or a motor to burn out, we use sensor data to identify micro-anomalies. 
+if menu == "Live Fleet Status":
+    st.title("⚡ Operational Health Overview")
     
-    * **Vibration** is our primary "health indicator". Excessive shaking means heavy wear and tear.
-    * **Humidity & Revolutions** act as "stress factors". We are investigating how environmental moisture and the sheer amount of mechanical movement force the elevator to vibrate out of normal ranges.
+    # KPIs
+    m1, m2, m3, m4 = st.columns(4)
+    avg_vib = df['vibration'].mean()
+    anomalies = df[df['vibration'] > vibration_threshold].shape[0]
     
-    **Why Companies Care:**
-    1.  **Downtime Reduction:** Prevents elevators from trapping people.
-    2.  **Cost Efficiency:** Predictable part replacements are cheaper than emergency disaster repairs.
-    """)
+    m1.metric("Avg. Vibration", f"{avg_vib:.2f} Hz")
+    m2.metric("Total Revolutions", f"{df['revolutions'].sum():,.0f}")
+    m3.metric("Anomalies Detected", anomalies, delta=f"{anomalies}", delta_color="inverse")
+    m4.metric("Fleet Status", "Warning" if anomalies > 50 else "Optimal")
+
+    st.subheader("Vibration Timeline (Sensor Stream)")
+    fig_line = px.line(df.iloc[::50], x='ID', y='vibration', color_discrete_sequence=['#00d4ff'])
+    fig_line.add_hline(y=vibration_threshold, line_dash="dash", line_color="red", annotation_text="Critical Limit")
+    st.plotly_chart(fig_line, use_container_width=True)
 
 # ==========================================
-# PAGE 2: DATA OVERVIEW (Stage 2)
+# MODULE 2: 3D MOVEMENT ANALYSIS (The "Working Elevator" View)
 # ==========================================
-elif page == "🧹 Data Overview":
-    st.title("Dataset Understanding & Cleaning")
+elif menu == "3D Movement Analysis":
+    st.title("🧊 3D Spatial Sensor Mapping")
+    st.markdown("This plot visualizes the **geometric path** of the elevator car using sensors X1, X2, and X3. Points are colored by vibration intensity.")
     
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Raw Rows", f"{raw_len:,}")
-    col2.metric("Missing Vibration Values Removed", f"{raw_len - len(df):,}")
-    col3.metric("Final Usable Rows", f"{len(df):,}")
+    # 3D Scatter Plot
+    # We sample the data to keep the 3D interaction smooth
+    df_sample = df.sample(min(5000, len(df)))
     
-    st.subheader("First 5 Rows of Cleaned Data")
-    st.dataframe(df.head(), use_container_width=True)
+    fig_3d = px.scatter_3d(
+        df_sample, x='x1', y='x2', z='x3',
+        color='vibration',
+        size='revolutions',
+        opacity=0.7,
+        color_continuous_scale='Inferno',
+        title="Elevator Movement Path in 3D Space",
+        labels={'x1': 'Lateral X', 'x2': 'Depth Y', 'x3': 'Vertical Z'}
+    )
     
-    st.subheader("Descriptive Statistics")
-    st.dataframe(df.describe(), use_container_width=True)
+    fig_3d.update_layout(scene=dict(bgcolor='#0e1117'), margin=dict(l=0, r=0, b=0, t=40))
+    st.plotly_chart(fig_3d, use_container_width=True)
+    
+    st.info("💡 **Insight:** Look for clusters of bright yellow dots. These represent specific physical coordinates in the elevator shaft where vibration is peaking, indicating a potential rail misalignment.")
 
 # ==========================================
-# PAGE 3: VISUAL ANALYTICS (Stage 3)
+# MODULE 3: STATISTICAL TRENDS
 # ==========================================
-elif page == "📊 Visual Analytics":
-    st.title("Data Visualization Hub")
+elif menu == "Statistical Trends":
+    st.title("📈 Correlation & Stress Testing")
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📈 Time Series", "📊 Distributions", "🟢 Scatter Analysis", "📦 Box Plots", "🔥 Correlation"
-    ])
+    c1, c2 = st.columns(2)
     
-    # 1. Line Plot
-    with tab1:
-        st.subheader("Vibration Over Time")
-        st.markdown("Observing how the health indicator behaves over sequential samples. *(Downsampled for performance)*")
-        # Sampling every 20th row to keep the UI snappy
-        fig_line = px.line(df.iloc[::20], x='ID', y='vibration', 
-                           color_discrete_sequence=['#FF4B4B'])
-        st.plotly_chart(fig_line, use_container_width=True)
-        
-    # 2. Histogram
-    with tab2:
-        st.subheader("Distribution of Stress Factors")
-        colA, colB = st.columns(2)
-        with colA:
-            fig_hist_hum = px.histogram(df, x='humidity', nbins=30, title="Humidity Distribution", color_discrete_sequence=['#3282B8'])
-            st.plotly_chart(fig_hist_hum, use_container_width=True)
-        with colB:
-            fig_hist_rev = px.histogram(df, x='revolutions', nbins=30, title="Revolutions Distribution", color_discrete_sequence=['#0F4C75'])
-            st.plotly_chart(fig_hist_rev, use_container_width=True)
-            
-    # 3. Scatter Plot
-    with tab3:
-        st.subheader("Revolutions vs Vibration")
-        st.markdown("Do higher revolutions cause higher vibrations?")
-        # Using a sample of 3000 points to prevent over-plotting
-        fig_scatter = px.scatter(df.sample(3000, random_state=42), x='revolutions', y='vibration', 
-                                 opacity=0.5, trendline="ols", color='humidity', color_continuous_scale='Viridis')
-        st.plotly_chart(fig_scatter, use_container_width=True)
-        
-    # 4. Box Plot
-    with tab4:
-        st.subheader("Sensor Readings Outlier Detection (x1 - x5)")
-        # Melt dataframe to plot multiple boxplots easily
-        df_melted = df[['x1', 'x2', 'x3', 'x4', 'x5']].melt(var_name='Sensor', value_name='Reading')
-        fig_box = px.box(df_melted, x='Sensor', y='Reading', color='Sensor')
+    with c1:
+        st.subheader("Humidity vs Vibration (Regression)")
+        # This is where STATSMODELS is needed!
+        fig_scat = px.scatter(df.sample(2000), x='humidity', y='vibration', 
+                             trendline="ols", trendline_color_override="red",
+                             color_discrete_sequence=['#30363d'])
+        st.plotly_chart(fig_scat, use_container_width=True)
+
+    with c2:
+        st.subheader("Sensor Distribution (x1-x5)")
+        df_melt = df[['x1','x2','x3','x4','x5']].melt()
+        fig_box = px.box(df_melt, x='variable', y='value', color='variable')
         st.plotly_chart(fig_box, use_container_width=True)
-        
-    # 5. Correlation Heatmap
-    with tab5:
-        st.subheader("Feature Correlation Heatmap")
-        corr_matrix = df[['revolutions', 'humidity', 'vibration', 'x1', 'x2', 'x3', 'x4', 'x5']].corr()
-        fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', origin='lower')
-        st.plotly_chart(fig_corr, use_container_width=True)
 
 # ==========================================
-# PAGE 4: INSIGHTS (Stage 4)
+# MODULE 4: AI MAINTENANCE ASSISTANT
 # ==========================================
-elif page == "💡 Key Insights":
-    st.title("Actionable Maintenance Insights")
+elif menu == "AI Maintenance Assistant":
+    st.title("🤖 Sentinel AI Advisor")
     
-    st.success("**Insight 1: Vibration Spikes Highlight Intermittent Friction**\nThe time-series analysis shows steady baselines mixed with sharp spikes. In real life, this implies sporadic mechanical blockages rather than total system failure.")
-    
-    st.warning("**Insight 2: Humidity Introduces Micro-Stresses**\nThe slight positive correlation between humidity and vibration indicates that environmental moisture causes tracks to expand or lubrication to degrade, making doors shudder.")
-    
-    st.info("**Insight 3: The Revolutions Paradox**\nContrary to basic assumptions, revolutions correlate slightly negatively with vibration. This means the elevator actually stabilizes and runs smoother at consistent speeds, while low-speed starting/stopping creates grinding.")
-    
-    st.markdown("### 🛠️ Recommendation for Teams")
-    st.markdown("> **Establish Automated Alerts:** Maintenance teams should integrate an alert system that dispatches a technician purely for lubrication and track-cleaning whenever the rolling average of `vibration` exceeds a threshold of 40, or if local weather predicts extended periods of high humidity.")
-
-# ==========================================
-# PAGE 5: AI ASSISTANT (Premium Secret Feature)
-# ==========================================
-elif page == "🤖 AI Assistant (Premium)":
-    st.title("Ask the Maintenance AI")
-    st.markdown("Consult the AI regarding elevator repair codes, maintenance strategies, or statistical correlations.")
-    
-    # Securely fetching API key from secrets
-    api_key = st.secrets.get("OPENAI_API_KEY", None)
-    
+    api_key = st.secrets.get("OPENAI_API_KEY")
     if not api_key:
-        st.error("🔒 Premium Feature Locked. Please add your OpenAI API Key to `.streamlit/secrets.toml` to activate the AI Assistant.")
+        st.warning("Please add `OPENAI_API_KEY` to Streamlit Secrets to enable this.")
     else:
         client = openai.OpenAI(api_key=api_key)
-        
-        # Initialize chat history
         if "messages" not in st.session_state:
-            st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your predictive maintenance AI. How can I help you analyze the elevator data today?"}]
+            st.session_state.messages = []
 
-        # Display chat messages
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        # Chat input
-        if prompt := st.chat_input("Ask about vibration thresholds or maintenance tips..."):
+        if prompt := st.chat_input("Ex: Why is high vibration dangerous in elevator shafts?"):
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
 
             with st.chat_message("assistant"):
-                message_placeholder = st.empty()
-                
-                # Call OpenAI API
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                 )
-                
-                full_response = response.choices[0].message.content
-                message_placeholder.markdown(full_response)
-            
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
+                answer = response.choices[0].message.content
+                st.markdown(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})
