@@ -2,147 +2,145 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import openai
+import google.generativeai as genai
+import numpy as np
 
 # ==========================================
-# PAGE CONFIGURATION
+# 1. PREMIUM UI & BRANDING
 # ==========================================
-st.set_page_config(
-    page_title="Elevator Sentinel Pro",
-    page_icon="🏗️",
-    layout="wide"
-)
+st.set_page_config(page_title="Sentinel AI | Elevator OS", page_icon="🏗️", layout="wide")
 
-# Custom CSS for a dark, premium industrial feel
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .stMetric { background-color: #161b22; border-radius: 10px; padding: 15px; border: 1px solid #30363d; }
+    div[data-testid="stMetric"] {
+        background-color: #161b22; border-radius: 12px; padding: 20px;
+        border: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #238636; color: white; }
+    .status-card { background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
     </style>
-    """, unsafe_allow_safe: True)
+    """, unsafe_allow_html=True)
 
 # ==========================================
-# DATA LOADING (Stage 2)
+# 2. DATA ENGINE (PRO CACHING)
 # ==========================================
 @st.cache_data
-def load_data():
+def get_processed_data():
     df = pd.read_csv("Elevator predictive-maintenance-dataset.csv")
-    df_clean = df.dropna(subset=['vibration']).copy()
-    return df_clean
+    df = df.dropna(subset=['vibration'])
+    # Predictive Math: Calculate a rolling 'Health Score'
+    df['health_score'] = 100 - (df['vibration'] * 0.5 + (df['humidity'] - 72) * 2)
+    df['health_score'] = df['health_score'].clip(lower=0, upper=100)
+    return df
 
 try:
-    df = load_data()
+    df = get_processed_data()
 except Exception as e:
-    st.error(f"Error loading data: {e}")
+    st.error("🚨 Dataset Missing. Please upload 'Elevator predictive-maintenance-dataset.csv' to your GitHub root.")
     st.stop()
 
 # ==========================================
-# SIDEBAR
+# 3. SIDEBAR COMMAND CENTER
 # ==========================================
-st.sidebar.title("🏗️ Sentinel Pro")
-st.sidebar.markdown("---")
-menu = st.sidebar.selectbox("Dashboard Modules", 
-    ["Live Fleet Status", "3D Movement Analysis", "Statistical Trends", "AI Maintenance Assistant"])
+with st.sidebar:
+    st.title("🏗️ SENTINEL v2.0")
+    st.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=100)
+    st.markdown("---")
+    page = st.radio("OPERATIONAL MODULES", ["Command Center", "3D Digital Twin", "Analytics Lab", "Gemini AI Advisor"])
+    st.markdown("---")
+    st.subheader("System Configuration")
+    alert_threshold = st.slider("Vibration Alert Limit", 0, 100, 45)
+    st.success("Database Connected")
 
-vibration_threshold = st.sidebar.slider("Anomaly Threshold (Vibration)", 0, 100, 45)
-
 # ==========================================
-# MODULE 1: LIVE FLEET STATUS
+# 4. MODULE: COMMAND CENTER (DASHBOARD)
 # ==========================================
-if menu == "Live Fleet Status":
-    st.title("⚡ Operational Health Overview")
+if page == "Command Center":
+    st.title("🎮 Fleet Command Center")
     
-    # KPIs
-    m1, m2, m3, m4 = st.columns(4)
+    # Real-time Metrics
+    c1, c2, c3, c4 = st.columns(4)
     avg_vib = df['vibration'].mean()
-    anomalies = df[df['vibration'] > vibration_threshold].shape[0]
+    health = df['health_score'].iloc[-1]
+    anomalies = len(df[df['vibration'] > alert_threshold])
     
-    m1.metric("Avg. Vibration", f"{avg_vib:.2f} Hz")
-    m2.metric("Total Revolutions", f"{df['revolutions'].sum():,.0f}")
-    m3.metric("Anomalies Detected", anomalies, delta=f"{anomalies}", delta_color="inverse")
-    m4.metric("Fleet Status", "Warning" if anomalies > 50 else "Optimal")
+    c1.metric("Current Health", f"{health:.1f}%", delta=f"{health-90:.1f}%")
+    c2.metric("Mean Vibration", f"{avg_vib:.2f} Hz")
+    c3.metric("Anomaly Events", anomalies, delta="Active" if anomalies > 0 else "None", delta_color="inverse")
+    c4.metric("Status", "Operational" if health > 70 else "URGENT REPAIR")
 
-    st.subheader("Vibration Timeline (Sensor Stream)")
-    fig_line = px.line(df.iloc[::50], x='ID', y='vibration', color_discrete_sequence=['#00d4ff'])
-    fig_line.add_hline(y=vibration_threshold, line_dash="dash", line_color="red", annotation_text="Critical Limit")
-    st.plotly_chart(fig_line, use_container_width=True)
+    # Live Sensor Pulse
+    st.subheader("📈 Vibration Pulse Stream")
+    fig_pulse = px.area(df.iloc[::25], x='ID', y='vibration', template="plotly_dark", color_discrete_sequence=['#58a6ff'])
+    fig_pulse.add_hline(y=alert_threshold, line_dash="dash", line_color="#f85149", annotation_text="CRITICAL THRESHOLD")
+    st.plotly_chart(fig_pulse, use_container_width=True)
 
 # ==========================================
-# MODULE 2: 3D MOVEMENT ANALYSIS (The "Working Elevator" View)
+# 5. MODULE: 3D DIGITAL TWIN (PREMIUM)
 # ==========================================
-elif menu == "3D Movement Analysis":
-    st.title("🧊 3D Spatial Sensor Mapping")
-    st.markdown("This plot visualizes the **geometric path** of the elevator car using sensors X1, X2, and X3. Points are colored by vibration intensity.")
+elif page == "3D Digital Twin":
+    st.title("🧊 3D Movement Digital Twin")
+    st.markdown("Mapping high-vibration hotspots across the vertical shaft coordinates ($X1, X2, X3$).")
     
-    # 3D Scatter Plot
-    # We sample the data to keep the 3D interaction smooth
-    df_sample = df.sample(min(5000, len(df)))
-    
+    # 3D Mapping
+    sample_df = df.sample(min(5000, len(df)))
     fig_3d = px.scatter_3d(
-        df_sample, x='x1', y='x2', z='x3',
-        color='vibration',
-        size='revolutions',
-        opacity=0.7,
-        color_continuous_scale='Inferno',
-        title="Elevator Movement Path in 3D Space",
-        labels={'x1': 'Lateral X', 'x2': 'Depth Y', 'x3': 'Vertical Z'}
+        sample_df, x='x1', y='x2', z='x3',
+        color='vibration', size='revolutions',
+        color_continuous_scale='Turbo', opacity=0.8,
+        template="plotly_dark", height=700
     )
-    
-    fig_3d.update_layout(scene=dict(bgcolor='#0e1117'), margin=dict(l=0, r=0, b=0, t=40))
+    fig_3d.update_layout(scene=dict(xaxis_title='Lateral X', yaxis_title='Depth Y', zaxis_title='Vertical Z'))
     st.plotly_chart(fig_3d, use_container_width=True)
-    
-    st.info("💡 **Insight:** Look for clusters of bright yellow dots. These represent specific physical coordinates in the elevator shaft where vibration is peaking, indicating a potential rail misalignment.")
 
 # ==========================================
-# MODULE 3: STATISTICAL TRENDS
+# 6. MODULE: ANALYTICS LAB
 # ==========================================
-elif menu == "Statistical Trends":
-    st.title("📈 Correlation & Stress Testing")
+elif page == "Analytics Lab":
+    st.title("🧪 Predictive Analytics Lab")
     
-    c1, c2 = st.columns(2)
+    t1, t2 = st.tabs(["Stress Correlation", "Sensor Distribution"])
     
-    with c1:
-        st.subheader("Humidity vs Vibration (Regression)")
-        # This is where STATSMODELS is needed!
-        fig_scat = px.scatter(df.sample(2000), x='humidity', y='vibration', 
-                             trendline="ols", trendline_color_override="red",
-                             color_discrete_sequence=['#30363d'])
-        st.plotly_chart(fig_scat, use_container_width=True)
+    with t1:
+        st.subheader("The Humidity Effect")
+        st.write("Applying OLS Regression to understand environmental impact on vibration.")
+        fig_ols = px.scatter(df.sample(2000), x='humidity', y='vibration', trendline="ols", 
+                           template="plotly_dark", color='revolutions', trendline_color_override="#f85149")
+        st.plotly_chart(fig_ols, use_container_width=True)
 
-    with c2:
-        st.subheader("Sensor Distribution (x1-x5)")
+    with t2:
+        st.subheader("Inter-Sensor Variance")
         df_melt = df[['x1','x2','x3','x4','x5']].melt()
-        fig_box = px.box(df_melt, x='variable', y='value', color='variable')
+        fig_box = px.box(df_melt, x='variable', y='value', color='variable', template="plotly_dark")
         st.plotly_chart(fig_box, use_container_width=True)
 
 # ==========================================
-# MODULE 4: AI MAINTENANCE ASSISTANT
+# 7. MODULE: GEMINI AI ADVISOR
 # ==========================================
-elif menu == "AI Maintenance Assistant":
-    st.title("🤖 Sentinel AI Advisor")
+elif page == "Gemini AI Advisor":
+    st.title("🤖 Maintenance Intelligence")
     
-    api_key = st.secrets.get("OPENAI_API_KEY")
-    if not api_key:
-        st.warning("Please add `OPENAI_API_KEY` to Streamlit Secrets to enable this.")
+    if "GOOGLE_API_KEY" not in st.secrets:
+        st.error("🔑 API Key Missing. Add `GOOGLE_API_KEY` to your Streamlit Secrets.")
     else:
-        client = openai.OpenAI(api_key=api_key)
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = []
 
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+        # Chat interface
+        for msg in st.session_state.chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
 
-        if prompt := st.chat_input("Ex: Why is high vibration dangerous in elevator shafts?"):
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
+        if prompt := st.chat_input("Ask about repair procedures or sensor anomalies..."):
+            st.session_state.chat_history.append({"role": "user", "content": prompt})
+            with st.chat_message("user"): st.markdown(prompt)
 
             with st.chat_message("assistant"):
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-                )
-                answer = response.choices[0].message.content
-                st.markdown(answer)
-            st.session_state.messages.append({"role": "assistant", "content": answer})
+                context = f"Elevator Data Summary: Avg Vibration {df['vibration'].mean():.2f}, Max Humidity {df['humidity'].max():.2f}. Anomaly Count: {len(df[df['vibration']>alert_threshold])}."
+                response = model.generate_content(f"{context} User Question: {prompt}")
+                st.markdown(response.text)
+                st.session_state.chat_history.append({"role": "assistant", "content": response.text})
