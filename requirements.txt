@@ -1,7 +1,4 @@
 streamlit
 pandas
-numpy
 plotly
 google-generativeai
-statsmodels
-scipy
