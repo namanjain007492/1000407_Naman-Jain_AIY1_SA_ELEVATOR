@@ -3,214 +3,210 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import google.generativeai as genai
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
+import datetime
 import time
 
-# ==========================================
-# 1. MALL OPERATIONS UI & CSS
-# ==========================================
-st.set_page_config(page_title="Mall Operations | Smart Elevator", page_icon="🛍️", layout="wide")
+# ==================================================
+# SECTION 11 — UI DESIGN & CONFIGURATION
+# ==================================================
+st.set_page_config(page_title="Smart Elevator AI", page_icon="🏢", layout="wide")
 
+# Custom Dark Mode & Professional UI CSS
 st.markdown("""
     <style>
-    .main { background-color: #0d1117; color: #c9d1d9; }
+    .main { background-color: #0e1117; color: #e2e8f0; }
     div[data-testid="stMetric"] {
         background-color: #161b22; border: 1px solid #30363d;
-        border-radius: 10px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
-    .demo-box { background-color: #0f291e; padding: 20px; border-radius: 10px; border-left: 5px solid #2ea043; margin-bottom: 20px;}
+    .stAlert { border-radius: 8px; }
+    h1, h2, h3 { color: #58a6ff; }
     </style>
     """, unsafe_allow_html=True)
 
-# ==========================================
-# 2. DATA ENGINE: MAPPING CSV TO MALL REALITY
-# ==========================================
+# ==================================================
+# SECTION 1 — DATA LOADING & PREPROCESSING
+# ==================================================
 @st.cache_data
-def load_mall_data():
-    df = pd.read_csv("Elevator predictive-maintenance-dataset.csv").dropna(subset=['vibration']).copy()
+def load_and_preprocess():
+    try:
+        df = pd.read_csv("Elevator predictive-maintenance-dataset.csv")
+    except Exception:
+        st.error("Dataset not found. Please upload 'Elevator predictive-maintenance-dataset.csv'.")
+        st.stop()
+        
+    # 5. Handle missing values (Drop NA in vibration)
+    df = df.dropna(subset=['vibration']).copy()
     
-    # MAPPING 1: Floors (Using vertical sensor X3)
-    # X3 ranges from ~0.2 to ~1.2 in the data. Let's slice it into 4 Mall Floors.
-    conditions = [
-        (df['x3'] < 0.5),
-        (df['x3'] >= 0.5) & (df['x3'] < 0.75),
-        (df['x3'] >= 0.75) & (df['x3'] < 1.0),
-        (df['x3'] >= 1.0)
-    ]
-    floors = ['Ground Floor (Food Court)', 'Floor 1 (Apparel)', 'Floor 2 (Electronics)', 'Floor 3 (Cinema)']
-    df['Mall_Floor'] = np.select(conditions, floors, default='Unknown')
+    # 6. Remove duplicates
+    df = df.drop_duplicates()
     
-    # MAPPING 2: Passenger Load Estimate (Using Revolutions)
-    df['Estimated_Passengers'] = (df['revolutions'] / 10).astype(int).clip(0, 15)
+    # FEATURE ENGINEERING: Synthesizing requested columns from raw data
+    # 2. Convert Timestamp (Synthesized starting from Jan 1, 2024, 5 mins per ID)
+    df['Timestamp'] = pd.date_range(start='2024-01-01', periods=len(df), freq='5T')
     
-    # MAPPING 3: Energy Consumption Score
-    df['Energy_Draw_kW'] = (df['revolutions'] * 0.5) + (df['vibration'] * 0.2)
+    # 4. Rename and map columns
+    df['Temperature'] = 20 + (df['revolutions'] / 10) + np.random.normal(0, 1.5, len(df))
+    df['Load'] = (df['revolutions'] / 8).astype(int).clip(0, 20) # Persons
     
-    # Rolling averages for smooth tracking
-    df['vibration_smooth'] = df['vibration'].rolling(20).mean().fillna(df['vibration'])
+    # Synthesize Failure events (Extreme vibration & temp)
+    df['Failure'] = np.where((df['vibration'] > 65) & (df['Temperature'] > 30), 1, 0)
     
+    # 3. Sort by timestamp
+    df = df.sort_values('Timestamp').reset_index(drop=True)
     return df
 
-try:
-    df = load_mall_data()
-except Exception as e:
-    st.error(f"Dataset missing! Please upload the CSV. Error: {e}")
-    st.stop()
+df_raw = load_and_preprocess()
 
-# ==========================================
-# 3. SIDEBAR: SECURITY & OPERATIONS
-# ==========================================
+# ==================================================
+# SECTION 2 — SIDEBAR CONTROLS
+# ==================================================
 with st.sidebar:
-    st.title("🛍️ Mall Operations")
-    st.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=80)
-    st.markdown("---")
+    st.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=60)
+    st.title("⚙️ Control Panel")
     
-    nav = st.radio("Access Terminals", [
-        "📺 App Demo & Walkthrough",
-        "🏢 3D Mall Shaft (Live Anim)", 
-        "📊 Floor & Shopper Analytics", 
-        "⚡ Energy & Motor Health",
-        "👮 AI Security Chief"
-    ])
+    # 1. Date Range Filter
+    min_date, max_date = df_raw['Timestamp'].min().date(), df_raw['Timestamp'].max().date()
+    date_range = st.date_input("Date Range Filter", [min_date, max_date], min_value=min_date, max_value=max_date)
     
-    st.markdown("---")
-    vib_alert = st.slider("Max Mall Safety Vibration", 10, 100, 35)
+    # 2. Elevator ID
+    elevator_id = st.selectbox("Elevator ID", ["Elevator A (Main)", "Elevator B (Service)"])
+    
+    # 3-5. Threshold Sliders
+    temp_thresh = st.slider("Temperature Threshold (°C)", 20.0, 50.0, 32.0)
+    vib_thresh = st.slider("Vibration Threshold (Hz)", 10.0, 100.0, 55.0)
+    load_thresh = st.slider("Load Threshold (Persons)", 1, 25, 15)
+    
+    # 6. Rolling Window
+    roll_window = st.selectbox("Rolling Window Trends", [3, 7, 14], format_func=lambda x: f"{x} Days")
+    
+    # Toggles
+    st.markdown("### AI Engines")
+    toggle_anomaly = st.toggle("🚨 Enable Anomaly Detection", value=True)
+    toggle_predict = st.toggle("🧠 Enable ML Failure Prediction", value=True)
+    
+    if st.button("🔄 Reset Filters"):
+        st.rerun()
 
-# ==========================================
-# MODULE 1: APP DEMO & WALKTHROUGH
-# ==========================================
-if nav == "📺 App Demo & Walkthrough":
-    st.title("Welcome to the Mall Elevator Control Room")
-    
-    st.markdown("""
-    <div class="demo-box">
-        <h3>🚀 Interactive Demonstration</h3>
-        <p>This application transforms raw mathematical CSV data into a real-world shopping mall scenario. Here is how the AI interprets your dataset:</p>
-        <ul>
-            <li><b>The Floors:</b> Sensor <code>X3</code> measures vertical height. We mapped its coordinates to actual mall floors (Ground to Cinema).</li>
-            <li><b>The Passengers:</b> <code>Revolutions</code> dictate motor strain. High strain means the car is full of shoppers.</li>
-            <li><b>The Health:</b> <code>Vibration</code> determines if the doors or tracks are jamming.</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.subheader("Live Operations Overview")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Current Traffic", f"{df['Estimated_Passengers'].mean():.0f} pax/trip")
-    c2.metric("Busiest Floor", df['Mall_Floor'].mode()[0])
-    c3.metric("Avg Shaft Humidity", f"{df['humidity'].mean():.1f}%")
-    c4.metric("Critical Alerts", len(df[df['vibration'] > vib_alert]))
+# Apply Date Filter
+if len(date_range) == 2:
+    mask = (df_raw['Timestamp'].dt.date >= date_range[0]) & (df_raw['Timestamp'].dt.date <= date_range[1])
+    df = df_raw[mask].copy()
+else:
+    df = df_raw.copy()
 
-    st.subheader("Simulate Live Weekend Traffic")
-    if st.button("▶️ Start Weekend Traffic Simulator"):
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        chart_placeholder = st.empty()
-        
-        for i in range(100, 500, 10):
-            progress_bar.progress(int((i/500)*100))
-            sim_data = df.iloc[i-100:i]
-            status_text.write(f"**Tracking Trip ID #{i}** | Current Floor: {sim_data['Mall_Floor'].iloc[-1]}")
-            
-            fig = px.bar(sim_data, x='ID', y='vibration', color='Mall_Floor', template="plotly_dark")
-            chart_placeholder.plotly_chart(fig, use_container_width=True)
-            time.sleep(0.1)
-        st.success("Simulation Complete!")
+# Downsample for UI Performance (Plotly crashes on 100k rows)
+df_sample = df.iloc[::20].copy() if len(df) > 10000 else df.copy()
 
-# ==========================================
-# MODULE 2: 3D MALL SHAFT (WORKING ELEVATOR)
-# ==========================================
-elif nav == "🏢 3D Mall Shaft (Live Anim)":
-    st.title("🏢 3D Mall Shaft Digital Twin")
-    st.write("Watch the elevator navigate the shopping center. Press **Play** below the chart to animate the car moving between the Food Court and the Cinema.")
-    
-    # We slice 100 chronological rows to animate a complete journey
-    anim_df = df.iloc[2000:2150].copy()
-    anim_df['TimeFrame'] = range(len(anim_df))
-    
-    fig_3d = px.scatter_3d(
-        anim_df, x='x1', y='x2', z='x3',
-        animation_frame='TimeFrame',
-        color='vibration',
-        size='Estimated_Passengers', size_max=40,
-        color_continuous_scale='Plasma',
-        range_z=[0, 1.5], range_x=[df['x1'].min(), df['x1'].max()], range_y=[df['x2'].min(), df['x2'].max()],
-        template="plotly_dark", height=700
-    )
-    
-    # Drawing Virtual "Mall Floors"
-    for z_val, f_name in zip([0.3, 0.6, 0.85, 1.1], ['Ground (Food)', 'Floor 1', 'Floor 2', 'Floor 3 (Cinema)']):
-        fig_3d.add_trace(go.Surface(
-            x=[[90, 170], [90, 170]], y=[[-60, -60], [25, 25]], z=[[z_val, z_val], [z_val, z_val]],
-            opacity=0.2, colorscale='Greens', showscale=False, name=f_name
-        ))
-        
-    fig_3d.update_layout(scene=dict(zaxis_title='Vertical Height (Floors)'))
-    st.plotly_chart(fig_3d, use_container_width=True)
-    st.info("🛒 The sphere size changes based on passenger load. Color changes based on mechanical vibration.")
+# ==================================================
+# SECTION 6 & 9 — RISK SCORING & MAINTENANCE REC.
+# ==================================================
+latest = df.iloc[-1]
+if latest['vibration'] > vib_thresh and latest['Temperature'] > temp_thresh:
+    risk_status, risk_color, risk_score = "Critical", "#ef4444", 95
+    rec_msg = "🚨 Immediate Maintenance Required within 48 hours."
+elif latest['vibration'] > vib_thresh or latest['Temperature'] > temp_thresh:
+    risk_status, risk_color, risk_score = "Warning", "#f59e0b", 65
+    rec_msg = "⚠️ Schedule Preventive Maintenance."
+else:
+    risk_status, risk_color, risk_score = "Stable", "#10b981", 15
+    rec_msg = "✅ System Operating Normally."
 
-# ==========================================
-# MODULE 3: FLOOR & SHOPPER ANALYTICS
-# ==========================================
-elif nav == "📊 Floor & Shopper Analytics":
-    st.title("📊 Shopper Traffic & Floor Health")
+# ==================================================
+# SECTION 3 — KPI DASHBOARD
+# ==================================================
+st.title(f"🏢 Predictive Maintenance OS: {elevator_id}")
+st.markdown(f"**Status:** <span style='color:{risk_color}'>{rec_msg}</span>", unsafe_allow_html=True)
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Total Records", f"{len(df):,}")
+c2.metric("Total Failures", df['Failure'].sum(), delta_color="inverse")
+c3.metric("Avg Temperature", f"{df['Temperature'].mean():.1f} °C")
+c4.metric("Avg Vibration", f"{df['vibration'].mean():.1f} Hz")
+
+c5, c6, c7, c8 = st.columns(4)
+c5.metric("Avg Load", f"{df['Load'].mean():.1f} Persons")
+c6.metric("Volatility Index", f"{df['vibration'].std():.2f} (StdDev)")
+c7.metric("Current Risk Score", f"{risk_score}%")
+c8.metric("System Health", risk_status)
+
+# ==================================================
+# SECTION 4 — VISUALIZATION ENGINE
+# ==================================================
+st.markdown("---")
+st.header("📊 Telemetry & Visualization Engine")
+
+t1, t2, t3 = st.tabs(["Time Series Analysis", "Correlation & Stability", "Advanced Analytics"])
+
+with t1:
+    # 1, 2, 3, 4, 5, 6: Multi-line comparison with Rolling Avg & Failures
+    df_sample[f'Vib_Rolling_{roll_window}D'] = df_sample['vibration'].rolling(roll_window*24).mean()
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Which Floor Causes the Most Vibration?")
-        floor_health = df.groupby('Mall_Floor')['vibration'].mean().reset_index()
-        fig_bar = px.bar(floor_health, x='Mall_Floor', y='vibration', color='vibration', template="plotly_dark")
-        st.plotly_chart(fig_bar, use_container_width=True)
-        
-    with col2:
-        st.subheader("Passenger Load vs Vibration")
-        st.write("Does a heavier car vibrate more?")
-        fig_scatter = px.box(df.sample(2000), x='Estimated_Passengers', y='vibration', color='Estimated_Passengers', template="plotly_dark")
+    fig_ts = px.line(df_sample, x='Timestamp', y=['vibration', 'Temperature', f'Vib_Rolling_{roll_window}D'], 
+                     title="Telemetry Over Time (Zoom Enabled)", template="plotly_dark")
+    
+    # Highlight Failures
+    failures = df_sample[df_sample['Failure'] == 1]
+    fig_ts.add_trace(go.Scatter(x=failures['Timestamp'], y=failures['vibration'], 
+                                mode='markers', marker=dict(color='red', size=10), name='Failure Event'))
+    st.plotly_chart(fig_ts, use_container_width=True)
+    
+[Image of elevator predictive maintenance system architecture]
+
+with t2:
+    col_a, col_b = st.columns(2)
+    with col_a:
+        # 8. Correlation heatmap
+        st.subheader("Correlation Heatmap")
+        corr = df[['vibration', 'Temperature', 'Load', 'humidity', 'revolutions']].corr()
+        fig_heat = px.imshow(corr, text_auto=".2f", color_continuous_scale='RdBu_r', template="plotly_dark")
+        st.plotly_chart(fig_heat, use_container_width=True)
+    with col_b:
+        # 10. Stability vs Unstable zone
+        st.subheader("Stability vs Load Profile")
+        fig_scatter = px.scatter(df_sample, x='Load', y='vibration', color='Failure', 
+                                 template="plotly_dark", color_continuous_scale='Reds')
+        fig_scatter.add_hline(y=vib_thresh, line_dash="dash", line_color="orange", annotation_text="Danger Zone")
         st.plotly_chart(fig_scatter, use_container_width=True)
 
-# ==========================================
-# MODULE 4: ENERGY & MOTOR HEALTH
-# ==========================================
-elif nav == "⚡ Energy & Motor Health":
-    st.title("⚡ Energy Consumption & Door Sensors")
+with t3:
+    # 9. Boxplot & 7. Volume of failures
+    col_c, col_d = st.columns(2)
+    with col_c:
+        st.subheader("Outlier Detection (Boxplot)")
+        fig_box = px.box(df_sample, y=['vibration', 'Temperature'], template="plotly_dark")
+        st.plotly_chart(fig_box, use_container_width=True)
+    with col_d:
+        st.subheader("Failure Volume per Month")
+        df['Month'] = df['Timestamp'].dt.to_period('M').astype(str)
+        fail_vol = df.groupby('Month')['Failure'].sum().reset_index()
+        fig_bar = px.bar(fail_vol, x='Month', y='Failure', template="plotly_dark", color_discrete_sequence=['#ef4444'])
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+# ==================================================
+# SECTION 5 — ANOMALY DETECTION (Z-SCORE)
+# ==================================================
+if toggle_anomaly:
+    st.markdown("---")
+    st.header("🚨 Z-Score Anomaly Detection")
     
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("Motor Energy Draw (kW)")
-        fig_energy = px.area(df.iloc[::30], x='ID', y='Energy_Draw_kW', template="plotly_dark", color_discrete_sequence=['#ff9900'])
-        st.plotly_chart(fig_energy, use_container_width=True)
-        
-    with c2:
-        st.subheader("Door Mechanism Diagnostics (X4 & X5)")
-        st.write("Analyzing internal sensor variance during door opening sequences.")
-        fig_doors = px.scatter(df.sample(2000), x='x4', y='x5', color='vibration', size='revolutions', template="plotly_dark")
-        st.plotly_chart(fig_doors, use_container_width=True)
-
-# ==========================================
-# MODULE 5: AI SECURITY CHIEF
-# ==========================================
-elif nav == "👮 AI Security Chief":
-    st.title("👮 Gemini Security & Operations AI")
-    st.write("Ask the AI Mall Chief about elevator maintenance, crowd control, or floor analytics.")
+    # Calculate Z-Score
+    df_sample['Z_Score'] = np.abs((df_sample['vibration'] - df_sample['vibration'].mean()) / df_sample['vibration'].std())
+    anomalies = df_sample[df_sample['Z_Score'] > 2]
     
-    if "GOOGLE_API_KEY" not in st.secrets:
-        st.error("🔑 Please add your `GOOGLE_API_KEY` to Streamlit Secrets!")
-    else:
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        if "chat" not in st.session_state:
-            st.session_state.chat = [{"role": "assistant", "content": "Mall Control AI online. How can I assist with the elevator fleet today?"}]
+    st.warning(f"Detected {len(anomalies)} anomalies exceeding 2 Standard Deviations.")
+    
+    fig_anom = px.scatter(df_sample, x='Timestamp', y='vibration', color=df_sample['Z_Score'] > 2,
+                          color_discrete_map={True: 'red', False: '#1f77b4'}, template="plotly_dark",
+                          title="Vibration Anomalies (Red = >2 Std Dev)")
+    st.plotly_chart(fig_anom, use_container_width=True)
 
-        for msg in st.session_state.chat:
-            with st.chat_message(msg["role"]): st.write(msg["content"])
-
-        if prompt := st.chat_input("E.g., Why is Floor 3 vibrating the most?"):
-            st.session_state.chat.append({"role": "user", "content": prompt})
-            with st.chat_message("user"): st.write(prompt)
-
-            with st.chat_message("assistant"):
-                sys_prompt = f"Context: Mall Elevator Data. Avg Vib: {df['vibration'].mean():.1f}. Busiest Floor: {df['Mall_Floor'].mode()[0]}. Energy Draw: {df['Energy_Draw_kW'].mean():.1f}kW. User says: {prompt}"
-                response = model.generate_content(sys_prompt)
-                st.write(response.text)
-                st.session_state.chat.append({"role": "assistant", "content": response.text})
+# ==================================================
+# SECTION 7 & 8 — ML PREDICTION & FORECASTING
+# ==================================================
+if toggle_predict:
+    st.markdown("---")
+    st.header
