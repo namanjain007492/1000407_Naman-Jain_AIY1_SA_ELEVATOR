@@ -4,217 +4,213 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import google.generativeai as genai
-from scipy import stats
 import time
 
 # ==========================================
-# 1. ENTERPRISE UI & CSS
+# 1. MALL OPERATIONS UI & CSS
 # ==========================================
-st.set_page_config(page_title="Elevator OS | 3D Animated", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Mall Operations | Smart Elevator", page_icon="🛍️", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #050505; color: #f8fafc; }
+    .main { background-color: #0d1117; color: #c9d1d9; }
     div[data-testid="stMetric"] {
-        background-color: #0f172a; border: 1px solid #1e293b;
-        border-radius: 10px; padding: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+        background-color: #161b22; border: 1px solid #30363d;
+        border-radius: 10px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
-    .tutorial-box { background-color: #164e63; padding: 20px; border-radius: 10px; border-left: 5px solid #06b6d4; margin-bottom: 20px;}
+    .demo-box { background-color: #0f291e; padding: 20px; border-radius: 10px; border-left: 5px solid #2ea043; margin-bottom: 20px;}
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. DATA ENGINE & MATHEMATICAL MODELLING
+# 2. DATA ENGINE: MAPPING CSV TO MALL REALITY
 # ==========================================
 @st.cache_data
-def load_and_process_data():
-    df = pd.read_csv("Elevator predictive-maintenance-dataset.csv").dropna(subset=['vibration'])
+def load_mall_data():
+    df = pd.read_csv("Elevator predictive-maintenance-dataset.csv").dropna(subset=['vibration']).copy()
     
-    # Mathematical Modelling: Volatility & Stability
-    df['health_score'] = (100 - (df['vibration'] * 0.7 + (df['humidity'] - 70) * 1.5)).clip(0, 100)
-    df['vibration_rolling'] = df['vibration'].rolling(window=50).mean().fillna(df['vibration'])
-    df['volatility'] = df['vibration'].pct_change().fillna(0).abs() # Price-swing style math for sensor noise
+    # MAPPING 1: Floors (Using vertical sensor X3)
+    # X3 ranges from ~0.2 to ~1.2 in the data. Let's slice it into 4 Mall Floors.
+    conditions = [
+        (df['x3'] < 0.5),
+        (df['x3'] >= 0.5) & (df['x3'] < 0.75),
+        (df['x3'] >= 0.75) & (df['x3'] < 1.0),
+        (df['x3'] >= 1.0)
+    ]
+    floors = ['Ground Floor (Food Court)', 'Floor 1 (Apparel)', 'Floor 2 (Electronics)', 'Floor 3 (Cinema)']
+    df['Mall_Floor'] = np.select(conditions, floors, default='Unknown')
     
-    # Z-Score Anomaly Detection
-    df['z_score'] = np.abs(stats.zscore(df['vibration']))
-    df['is_anomaly'] = df['z_score'] > 3
+    # MAPPING 2: Passenger Load Estimate (Using Revolutions)
+    df['Estimated_Passengers'] = (df['revolutions'] / 10).astype(int).clip(0, 15)
+    
+    # MAPPING 3: Energy Consumption Score
+    df['Energy_Draw_kW'] = (df['revolutions'] * 0.5) + (df['vibration'] * 0.2)
+    
+    # Rolling averages for smooth tracking
+    df['vibration_smooth'] = df['vibration'].rolling(20).mean().fillna(df['vibration'])
     
     return df
 
 try:
-    df = load_and_process_data()
+    df = load_mall_data()
 except Exception as e:
-    st.error(f"Dataset missing! Upload the CSV. Error: {e}")
+    st.error(f"Dataset missing! Please upload the CSV. Error: {e}")
     st.stop()
 
 # ==========================================
-# 3. SIDEBAR NAVIGATION & CONTROLS
+# 3. SIDEBAR: SECURITY & OPERATIONS
 # ==========================================
 with st.sidebar:
-    st.title("🏢 Smart Elevator OS")
+    st.title("🛍️ Mall Operations")
+    st.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=80)
     st.markdown("---")
     
-    nav = st.radio("Select Module", [
-        "📖 How to Use This App (Demo)",
-        "🎛️ Live Command Center", 
-        "🎬 3D Animated Elevator", 
-        "📈 Volatility & Math Lab", 
-        "🤖 Gemini AI Assistant"
+    nav = st.radio("Access Terminals", [
+        "📺 App Demo & Walkthrough",
+        "🏢 3D Mall Shaft (Live Anim)", 
+        "📊 Floor & Shopper Analytics", 
+        "⚡ Energy & Motor Health",
+        "👮 AI Security Chief"
     ])
     
     st.markdown("---")
-    st.subheader("Global Parameters")
-    vib_alert = st.slider("Critical Vibration (Hz)", 10, 100, 40)
-    sim_speed = st.slider("Simulation Speed", 0.1, 2.0, 1.0)
+    vib_alert = st.slider("Max Mall Safety Vibration", 10, 100, 35)
 
 # ==========================================
-# MODULE 1: APP DEMO & TUTORIAL (NEW)
+# MODULE 1: APP DEMO & WALKTHROUGH
 # ==========================================
-if nav == "📖 How to Use This App (Demo)":
-    st.title("Welcome to the Predictive Maintenance OS")
+if nav == "📺 App Demo & Walkthrough":
+    st.title("Welcome to the Mall Elevator Control Room")
     
     st.markdown("""
-    <div class="tutorial-box">
-        <h3>🚀 Quick Start Guide</h3>
-        <p>This dashboard uses advanced mathematical functions and machine learning to detect patterns of stability and volatility in elevator sensor data. Here is how to use it:</p>
+    <div class="demo-box">
+        <h3>🚀 Interactive Demonstration</h3>
+        <p>This application transforms raw mathematical CSV data into a real-world shopping mall scenario. Here is how the AI interprets your dataset:</p>
+        <ul>
+            <li><b>The Floors:</b> Sensor <code>X3</code> measures vertical height. We mapped its coordinates to actual mall floors (Ground to Cinema).</li>
+            <li><b>The Passengers:</b> <code>Revolutions</code> dictate motor strain. High strain means the car is full of shoppers.</li>
+            <li><b>The Health:</b> <code>Vibration</code> determines if the doors or tracks are jamming.</li>
+        </ul>
     </div>
     """, unsafe_allow_html=True)
     
-    st.subheader("1. Command Center")
-    st.write("View the real-time health of the elevator. The line charts use rolling averages to smooth out sudden jumps (random noise) from the actual long-term mechanical drift.")
-    
-    st.subheader("2. 3D Animated Elevator")
-    st.write("Watch the digital twin move! This module animates the `X3` (vertical) sensor data over time, showing you exactly how the elevator car moves up and down the shaft while changing color based on vibration intensity.")
-    
-    st.subheader("3. Volatility & Math Lab")
-    st.write("Explore the statistical relationship between environmental factors (like humidity) and mechanical wear. You can download the anomaly reports here.")
-    
-    st.subheader("4. AI Assistant")
-    st.write("Ask the built-in Google Gemini AI questions about the data. (Ensure your API key is in the Streamlit Secrets!).")
-    
-    if st.button("Start Exploring Data Now"):
-        st.success("Navigate using the sidebar on the left!")
-
-# ==========================================
-# MODULE 2: COMMAND CENTER & STREAMING
-# ==========================================
-elif nav == "🎛️ Live Command Center":
-    st.title("🎛️ Live Operational Dashboard")
-    
+    st.subheader("Live Operations Overview")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("System Health", f"{df['health_score'].mean():.1f}%")
-    c2.metric("Volatility Index", f"{df['volatility'].mean()*100:.2f}%")
-    c3.metric("Anomalies", f"{df['is_anomaly'].sum()}")
-    c4.metric("Avg Vibration", f"{df['vibration'].mean():.1f} Hz")
-    
-    st.subheader("Live Sensor Pulse (With Volatility High/Low)")
-    
-    # Real-time simulation toggle
-    if st.checkbox("🟢 Enable Real-Time Data Streaming Simulation"):
-        placeholder = st.empty()
-        for i in range(100, 1000, 10):
-            with placeholder.container():
-                stream_df = df.iloc[i-100:i]
-                fig = px.line(stream_df, x='ID', y=['vibration', 'vibration_rolling'], template="plotly_dark")
-                st.plotly_chart(fig, use_container_width=True)
-            time.sleep(0.1 / sim_speed)
-    else:
-        fig_pulse = px.line(df.iloc[::25], x='ID', y=['vibration', 'vibration_rolling'], template="plotly_dark")
-        fig_pulse.add_hline(y=vib_alert, line_dash="dash", line_color="#ef4444")
-        st.plotly_chart(fig_pulse, use_container_width=True)
+    c1.metric("Current Traffic", f"{df['Estimated_Passengers'].mean():.0f} pax/trip")
+    c2.metric("Busiest Floor", df['Mall_Floor'].mode()[0])
+    c3.metric("Avg Shaft Humidity", f"{df['humidity'].mean():.1f}%")
+    c4.metric("Critical Alerts", len(df[df['vibration'] > vib_alert]))
+
+    st.subheader("Simulate Live Weekend Traffic")
+    if st.button("▶️ Start Weekend Traffic Simulator"):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        chart_placeholder = st.empty()
+        
+        for i in range(100, 500, 10):
+            progress_bar.progress(int((i/500)*100))
+            sim_data = df.iloc[i-100:i]
+            status_text.write(f"**Tracking Trip ID #{i}** | Current Floor: {sim_data['Mall_Floor'].iloc[-1]}")
+            
+            fig = px.bar(sim_data, x='ID', y='vibration', color='Mall_Floor', template="plotly_dark")
+            chart_placeholder.plotly_chart(fig, use_container_width=True)
+            time.sleep(0.1)
+        st.success("Simulation Complete!")
 
 # ==========================================
-# MODULE 3: 3D ANIMATED ELEVATOR (NEW)
+# MODULE 2: 3D MALL SHAFT (WORKING ELEVATOR)
 # ==========================================
-elif nav == "🎬 3D Animated Elevator":
-    st.title("🎬 Animated 3D Digital Twin")
-    st.markdown("This simulates the elevator traveling up and down. The sphere represents the elevator car. **Press the 'Play' button on the timeline below to watch it move.**")
+elif nav == "🏢 3D Mall Shaft (Live Anim)":
+    st.title("🏢 3D Mall Shaft Digital Twin")
+    st.write("Watch the elevator navigate the shopping center. Press **Play** below the chart to animate the car moving between the Food Court and the Cinema.")
     
+    # We slice 100 chronological rows to animate a complete journey
+    anim_df = df.iloc[2000:2150].copy()
+    anim_df['TimeFrame'] = range(len(anim_df))
     
-    
-    # Create an animation sequence
-    # We take a continuous slice of 150 points to show a smooth up/down trip
-    anim_df = df.iloc[1000:1150].copy()
-    anim_df['TimeStep'] = range(len(anim_df))  # Create frame sequence
-    
-    fig_anim = px.scatter_3d(
-        anim_df, 
-        x='x1', y='x2', z='x3',
-        animation_frame='TimeStep', # THIS CREATES THE ANIMATION
+    fig_3d = px.scatter_3d(
+        anim_df, x='x1', y='x2', z='x3',
+        animation_frame='TimeFrame',
         color='vibration',
-        size='vibration',
-        size_max=30,
-        range_x=[df['x1'].min(), df['x1'].max()],
-        range_y=[df['x2'].min(), df['x2'].max()],
-        range_z=[df['x3'].min(), df['x3'].max()],
-        color_continuous_scale='Turbo',
-        template="plotly_dark",
-        height=750
+        size='Estimated_Passengers', size_max=40,
+        color_continuous_scale='Plasma',
+        range_z=[0, 1.5], range_x=[df['x1'].min(), df['x1'].max()], range_y=[df['x2'].min(), df['x2'].max()],
+        template="plotly_dark", height=700
     )
     
-    # Add the "Shaft" wireframe for visual context
-    fig_anim.add_trace(go.Scatter3d(
-        x=[120, 120, 120, 120], y=[-30, -30, -30, -30], 
-        z=[df['x3'].min(), df['x3'].max()],
-        mode='lines', line=dict(color='cyan', width=2), name="Guide Rail"
-    ))
-    
-    fig_anim.update_layout(scene=dict(
-        xaxis_title='Lateral Sway (X1)', 
-        yaxis_title='Depth (X2)', 
-        zaxis_title='Vertical Position (X3) ↕️'
-    ))
-    
-    st.plotly_chart(fig_anim, use_container_width=True)
-    st.info("💡 **Observation:** As the animation plays, watch how the color changes (indicating vibration intensity) as the vertical position (Z-axis) changes.")
+    # Drawing Virtual "Mall Floors"
+    for z_val, f_name in zip([0.3, 0.6, 0.85, 1.1], ['Ground (Food)', 'Floor 1', 'Floor 2', 'Floor 3 (Cinema)']):
+        fig_3d.add_trace(go.Surface(
+            x=[[90, 170], [90, 170]], y=[[-60, -60], [25, 25]], z=[[z_val, z_val], [z_val, z_val]],
+            opacity=0.2, colorscale='Greens', showscale=False, name=f_name
+        ))
+        
+    fig_3d.update_layout(scene=dict(zaxis_title='Vertical Height (Floors)'))
+    st.plotly_chart(fig_3d, use_container_width=True)
+    st.info("🛒 The sphere size changes based on passenger load. Color changes based on mechanical vibration.")
 
 # ==========================================
-# MODULE 4: VOLATILITY & MATH LAB
+# MODULE 3: FLOOR & SHOPPER ANALYTICS
 # ==========================================
-elif nav == "📈 Volatility & Math Lab":
-    st.title("📈 Statistical Volatility Lab")
+elif nav == "📊 Floor & Shopper Analytics":
+    st.title("📊 Shopper Traffic & Floor Health")
     
-    tab1, tab2 = st.tabs(["Volatility Heatmap", "Data Export Engine"])
-    
-    with tab1:
-        st.write("Matrix showing patterns of stability and volatility across all variables.")
-        corr = df[['revolutions', 'humidity', 'vibration', 'volatility', 'x1', 'x3']].corr()
-        fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale='RdBu_r', template="plotly_dark")
-        st.plotly_chart(fig_corr, use_container_width=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Which Floor Causes the Most Vibration?")
+        floor_health = df.groupby('Mall_Floor')['vibration'].mean().reset_index()
+        fig_bar = px.bar(floor_health, x='Mall_Floor', y='vibration', color='vibration', template="plotly_dark")
+        st.plotly_chart(fig_bar, use_container_width=True)
         
-    with tab2:
-        st.subheader("Export Anomaly Data")
-        st.write("Filter and download data rows where mathematical thresholds were breached.")
-        anomaly_df = df[df['vibration'] > vib_alert]
-        st.dataframe(anomaly_df.head(50), use_container_width=True)
-        
-        csv = anomaly_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Critical Logs (CSV)", data=csv, file_name='volatility_spikes.csv', mime='text/csv')
+    with col2:
+        st.subheader("Passenger Load vs Vibration")
+        st.write("Does a heavier car vibrate more?")
+        fig_scatter = px.box(df.sample(2000), x='Estimated_Passengers', y='vibration', color='Estimated_Passengers', template="plotly_dark")
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
 # ==========================================
-# MODULE 5: AI ASSISTANT
+# MODULE 4: ENERGY & MOTOR HEALTH
 # ==========================================
-elif nav == "🤖 Gemini AI Assistant":
-    st.title("🤖 Gemini Enterprise Assistant")
+elif nav == "⚡ Energy & Motor Health":
+    st.title("⚡ Energy Consumption & Door Sensors")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("Motor Energy Draw (kW)")
+        fig_energy = px.area(df.iloc[::30], x='ID', y='Energy_Draw_kW', template="plotly_dark", color_discrete_sequence=['#ff9900'])
+        st.plotly_chart(fig_energy, use_container_width=True)
+        
+    with c2:
+        st.subheader("Door Mechanism Diagnostics (X4 & X5)")
+        st.write("Analyzing internal sensor variance during door opening sequences.")
+        fig_doors = px.scatter(df.sample(2000), x='x4', y='x5', color='vibration', size='revolutions', template="plotly_dark")
+        st.plotly_chart(fig_doors, use_container_width=True)
+
+# ==========================================
+# MODULE 5: AI SECURITY CHIEF
+# ==========================================
+elif nav == "👮 AI Security Chief":
+    st.title("👮 Gemini Security & Operations AI")
+    st.write("Ask the AI Mall Chief about elevator maintenance, crowd control, or floor analytics.")
     
     if "GOOGLE_API_KEY" not in st.secrets:
-        st.error("🔑 API Key Missing! Please add `GOOGLE_API_KEY` to Streamlit Secrets.")
+        st.error("🔑 Please add your `GOOGLE_API_KEY` to Streamlit Secrets!")
     else:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         if "chat" not in st.session_state:
-            st.session_state.chat = [{"role": "assistant", "content": "I am connected to the dataset. Ask me to calculate ROI, analyze volatility, or suggest repairs."}]
+            st.session_state.chat = [{"role": "assistant", "content": "Mall Control AI online. How can I assist with the elevator fleet today?"}]
 
         for msg in st.session_state.chat:
             with st.chat_message(msg["role"]): st.write(msg["content"])
 
-        if prompt := st.chat_input("E.g., What causes high volatility in the Z-axis?"):
+        if prompt := st.chat_input("E.g., Why is Floor 3 vibrating the most?"):
             st.session_state.chat.append({"role": "user", "content": prompt})
             with st.chat_message("user"): st.write(prompt)
 
             with st.chat_message("assistant"):
-                sys_prompt = f"Data context: Avg Vib {df['vibration'].mean():.1f}Hz, Volatility {df['volatility'].mean()*100:.2f}%. User asks: {prompt}"
+                sys_prompt = f"Context: Mall Elevator Data. Avg Vib: {df['vibration'].mean():.1f}. Busiest Floor: {df['Mall_Floor'].mode()[0]}. Energy Draw: {df['Energy_Draw_kW'].mean():.1f}kW. User says: {prompt}"
                 response = model.generate_content(sys_prompt)
                 st.write(response.text)
                 st.session_state.chat.append({"role": "assistant", "content": response.text})
