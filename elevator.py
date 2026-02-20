@@ -3,17 +3,18 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
 from scipy.fft import fft, fftfreq
 import google.generativeai as genai
 import time
-import datetime
 
 # ==================================================
 # 1. UI DESIGN & CONFIGURATION
 # ==================================================
-st.set_page_config(page_title="Elevator AI | V7 Masterpiece", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Smart Elevator AI | V8", page_icon="🏢", layout="wide")
 
 st.markdown("""
     <style>
@@ -23,18 +24,16 @@ st.markdown("""
         border-radius: 8px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.5);
     }
     h1, h2, h3 { color: #38bdf8; }
-    .fa2-card { background-color: #312e81; border-left: 5px solid #6366f1; padding: 20px; border-radius: 8px; margin-bottom: 20px;}
-    .alert-card { background-color: #7f1d1d; border-left: 5px solid #ef4444; padding: 15px; border-radius: 8px; margin-bottom: 20px;}
+    .metric-card { background-color: #0f291e; border-left: 5px solid #10b981; padding: 15px; border-radius: 8px; margin-bottom: 20px;}
     </style>
     """, unsafe_allow_html=True)
 
 # ==================================================
-# 2. DATA ENGINEERING & FA-2 MATHEMATICS
+# 2. DATA ENGINEERING & ML PREP
 # ==================================================
 @st.cache_data
 def load_and_preprocess():
     try:
-        # YES - THIS USES YOUR EXACT DATA FILE
         df = pd.read_csv("Elevator predictive-maintenance-dataset.csv").dropna(subset=['vibration']).drop_duplicates()
     except Exception:
         st.error("⚠️ Dataset not found! Please ensure 'Elevator predictive-maintenance-dataset.csv' is in the exact same folder.")
@@ -43,25 +42,19 @@ def load_and_preprocess():
     df['Timestamp'] = pd.date_range(start='2024-01-01', periods=len(df), freq='5T')
     df['Temperature'] = 20 + (df['revolutions'] / 10) + np.random.normal(0, 1.5, len(df))
     df['Load'] = (df['revolutions'] / 8).astype(int).clip(0, 20) 
-    df['Failure'] = np.where((df['vibration'] > 65) & (df['Temperature'] > 30), 1, 0)
     
-    # ---------------------------------------------------------
-    # FA-2 RUBRIC MATH INJECTIONS (Sine/Cosine, Integrals, Noise)
-    # ---------------------------------------------------------
+    # IMPROVED ML DATA LOGIC: Calculate a weighted risk factor to determine realistic failures
+    df['Risk_Factor'] = (df['vibration'] * 0.5) + (df['Temperature'] * 0.3) + (df['Load'] * 2.0)
+    risk_threshold = df['Risk_Factor'].quantile(0.96) # Top 4% highest risk moments are mechanical failures
+    df['Failure'] = (df['Risk_Factor'] > risk_threshold).astype(int)
+    
+    # Mathematics for AI (FA-2 Integrals & Resonance)
     t = np.arange(len(df))
-    
-    # 1. Sine/Cosine (Ideal Motor Resonance)
     df['Ideal_Resonance'] = 20 + 15 * np.sin(2 * np.pi * 0.05 * t)
-    
-    # 2. Random Noise (Sudden Mechanical Jumps)
-    df['Simulated_Jumps'] = df['Ideal_Resonance'] + np.random.normal(0, 5, len(df))
-    
-    # 3. Calculus Integrals (Cumulative Mechanical Wear & Tear)
-    # Using np.cumsum to approximate the Area Under the Curve safely
     df['Cumulative_Stress'] = np.cumsum(df['vibration']) * 0.1 
     df['Energy_Consumed_kWh'] = np.cumsum(df['revolutions'] * df['vibration'] * 0.001)
     
-    # 4. Volatility (Price Swings -> Bollinger Bands)
+    # Volatility bounds
     df['Rolling_Mean'] = df['vibration'].rolling(window=20).mean().bfill()
     df['Rolling_Std'] = df['vibration'].rolling(window=20).std().bfill()
     df['Upper_Band'] = df['Rolling_Mean'] + (df['Rolling_Std'] * 2) 
@@ -74,7 +67,6 @@ def load_and_preprocess():
     return df.sort_values('Timestamp').reset_index(drop=True)
 
 df_raw = load_and_preprocess()
-# Downsample slightly for UI speed, but keep enough data for good integrals
 df = df_raw.iloc[::10].copy() if len(df_raw) > 5000 else df_raw.copy()
 
 # ==================================================
@@ -85,31 +77,27 @@ with st.sidebar:
     st.title("🏢 Elevator OS")
     
     nav = st.radio("Select Module", [
-        "📖 1. Live Streaming Demo",
-        "📐 2. FA-2 Mathematics Engine",
-        "⚡ 3. Energy & Sustainability",
-        "🧊 4. Interactive 3D Control",
-        "🧠 5. ML Failure Predictor",
-        "🤖 6. Gemini AI Terminal"
+        "📖 1. Live Operational Stream",
+        "📐 2. Mathematical Modeling",
+        "🧊 3. 3D Speed & Physics Engine",
+        "🧠 4. Advanced ML Training",
+        "🤖 5. Gemini AI Terminal"
     ])
     
     st.markdown("---")
     vib_thresh = st.slider("Critical Vibration Limit (Hz)", 10.0, 100.0, 55.0)
 
 # ==================================================
-# MODULE 1: LIVE STREAMING DEMO
+# MODULE 1: LIVE OPERATIONAL STREAM
 # ==================================================
-if nav == "📖 1. Live Streaming Demo":
+if nav == "📖 1. Live Operational Stream":
     st.title("Live Operational Telemetry")
-    st.write("Simulates a real-time data feed directly from your uploaded dataset.")
     
     col_run, col_stop = st.columns([1, 5])
     start_sim = col_run.button("▶️ Start Stream")
     stop_sim = col_stop.button("⏹️ Stop Stream")
     
-    if "sim_running" not in st.session_state:
-        st.session_state.sim_running = False
-        
+    if "sim_running" not in st.session_state: st.session_state.sim_running = False
     if start_sim: st.session_state.sim_running = True
     if stop_sim: st.session_state.sim_running = False
 
@@ -119,9 +107,7 @@ if nav == "📖 1. Live Streaming Demo":
     if st.session_state.sim_running:
         sim_data = df.head(300) 
         for i in range(20, len(sim_data), 2):
-            if not st.session_state.sim_running:
-                break 
-                
+            if not st.session_state.sim_running: break 
             current_slice = sim_data.iloc[:i]
             latest = current_slice.iloc[-1]
             
@@ -130,160 +116,135 @@ if nav == "📖 1. Live Streaming Demo":
                 c1.metric("Current Floor", latest['Floor'])
                 c2.metric("Vibration", f"{latest['vibration']:.1f} Hz", delta="Alert" if latest['vibration'] > vib_thresh else "Normal", delta_color="inverse")
                 c3.metric("Passenger Load", f"{latest['Load']} Pax")
-                c4.metric("Cumulative Wear", f"{latest['Cumulative_Stress']:,.0f} Units")
+                c4.metric("Z-Score Volatility", f"{latest['Z_Score']:.2f} σ")
                 
-            fig = px.line(current_slice, x='Timestamp', y=['vibration', 'Upper_Band', 'Lower_Band'], 
-                          template="plotly_dark", title="Real-Time Vibration & Volatility Bounds")
+            fig = px.line(current_slice, x='Timestamp', y=['vibration', 'Upper_Band', 'Lower_Band'], template="plotly_dark", title="Real-Time Vibration & Volatility Bounds")
             fig.add_hline(y=vib_thresh, line_dash="dash", line_color="red")
             chart_placeholder.plotly_chart(fig, use_container_width=True)
             time.sleep(0.05) 
     else:
-        st.info("Click 'Start Stream' to begin the real-time simulation using your CSV data.")
+        st.info("Click 'Start Stream' to begin the real-time simulation.")
 
 # ==================================================
-# MODULE 2: FA-2 MATHEMATICS ENGINE
+# MODULE 2: MATHEMATICAL MODELING
 # ==================================================
-elif nav == "📐 2. FA-2 Mathematics Engine":
-    st.title("📐 FA-2 Applied Mathematics")
+elif nav == "📐 2. Mathematical Modeling":
+    st.title("📐 Mathematical Diagnostics")
     
-    st.markdown("""
-    <div class="fa2-card">
-        <h3>🎓 Grading Rubric Fulfillment</h3>
-        <p>This module demonstrates Sine waves, Integrals, and Volatility using your actual Elevator dataset.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    t1, t2, t3 = st.tabs(["1. Sine/Cosine & Noise", "2. Calculus (Integrals)", "3. Price Swing Volatility"])
+    t1, t2 = st.tabs(["Sine Resonance Integrals", "Bollinger Swings"])
     
     with t1:
-        st.subheader("Sine/Cosine Resonance vs. Random Noise")
-        st.write("We simulate an ideal motor rotation using a **Sine Wave** overlaying your data to show deviation.")
-        fig_sine = go.Figure()
-        fig_sine.add_trace(go.Scatter(x=df['Timestamp'][:200], y=df['Ideal_Resonance'][:200], name='Ideal Sine Wave (Pure)', line=dict(color='#10b981', dash='dash')))
-        fig_sine.add_trace(go.Scatter(x=df['Timestamp'][:200], y=df['vibration'][:200], name='Actual CSV Data (With Noise)', line=dict(color='#ef4444')))
-        fig_sine.update_layout(template="plotly_dark", title="Trigonometric Baseline vs Actual Data")
-        st.plotly_chart(fig_sine, use_container_width=True)
-
-    with t2:
-        st.subheader("Long-Term Drift via Definite Integrals")
-        st.write("Using Numerical Integration to calculate the **Area Under the Curve** representing cumulative wear.")
-        st.latex(r"Cumulative Stress = \int_{t_0}^{t_n} Vibration(t) \,dt")
+        st.write("Using Numerical Integration to calculate Cumulative Mechanical Stress (Area Under the Curve).")
         fig_int = px.area(df, x='Timestamp', y='Cumulative_Stress', template="plotly_dark", color_discrete_sequence=['#8b5cf6'])
         st.plotly_chart(fig_int, use_container_width=True)
 
-    with t3:
-        st.subheader("Market Price Swings (Bollinger Bands)")
+    with t2:
         st.write("Applying financial market math to visualize mechanical volatility.")
         fig_bb = go.Figure()
         fig_bb.add_trace(go.Scatter(x=df['Timestamp'], y=df['Upper_Band'], line=dict(color='rgba(0,0,0,0)'), showlegend=False))
         fig_bb.add_trace(go.Scatter(x=df['Timestamp'], y=df['Lower_Band'], fill='tonexty', fillcolor='rgba(56, 189, 248, 0.15)', line=dict(color='rgba(0,0,0,0)'), name='Volatility Bounds'))
-        fig_bb.add_trace(go.Scatter(x=df['Timestamp'], y=df['vibration'], line=dict(color='#38bdf8', width=1), name='Raw CSV Vibration'))
+        fig_bb.add_trace(go.Scatter(x=df['Timestamp'], y=df['vibration'], line=dict(color='#38bdf8', width=1), name='Raw Vibration'))
         fig_bb.add_trace(go.Scatter(x=df['Timestamp'], y=df['Rolling_Mean'], line=dict(color='#f59e0b', width=2), name='Moving Avg'))
         fig_bb.update_layout(template="plotly_dark")
         st.plotly_chart(fig_bb, use_container_width=True)
 
 # ==================================================
-# MODULE 3: ENERGY & SUSTAINABILITY (NEW)
+# MODULE 3: 3D SPEED & PHYSICS ENGINE
 # ==================================================
-elif nav == "⚡ 3. Energy & Sustainability":
-    st.title("⚡ Energy & ESG Sustainability Metrics")
-    st.write("Calculates the power consumed by the elevator using integral mathematics.")
-    
-    total_kwh = df['Energy_Consumed_kWh'].max()
-    co2_emissions = total_kwh * 0.4 # Approx 0.4 kg CO2 per kWh
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Energy Consumed", f"{total_kwh:,.1f} kWh")
-    c2.metric("Est. CO2 Emissions", f"{co2_emissions:,.1f} kg", delta="-5.2% vs Last Month")
-    c3.metric("Energy Cost", f"${total_kwh * 0.15:,.2f}")
-    
-    fig_energy = px.area(df, x='Timestamp', y='Energy_Consumed_kWh', template="plotly_dark", title="Cumulative Energy Draw Over Time", color_discrete_sequence=['#14b8a6'])
-    st.plotly_chart(fig_energy, use_container_width=True)
-
-# ==================================================
-# MODULE 4: INTERACTIVE 3D CONTROL
-# ==================================================
-elif nav == "🧊 4. Interactive 3D Control":
-    st.title("🧊 Interactive 3D Elevator Digital Twin")
-    st.write("Manual control panel. Select a floor and inject load to see the physical forces shift.")
+elif nav == "🧊 3. 3D Speed & Physics Engine":
+    st.title("🧊 Interactive Physics & Speed Engine")
+    st.write("See exactly how passenger weight impacts the mechanical speed of the elevator.")
     
     c1, c2 = st.columns(2)
-    target_floor = c1.selectbox("Call Elevator to Floor:", ["Ground", "Floor 1", "Floor 2"])
-    pax_load = c2.slider("Board Passengers:", 0, 20, 5)
+    start_floor = c1.selectbox("Start Floor:", ["Ground", "Floor 1", "Floor 2"], index=0)
+    target_floor = c2.selectbox("Destination Floor:", ["Ground", "Floor 1", "Floor 2"], index=2)
+    pax_load = st.slider("Board Passengers (Weight):", 0, 20, 8)
     
-    z_map = {"Ground": 0.3, "Floor 1": 0.6, "Floor 2": 0.9}
-    current_z = z_map[target_floor]
+    # Physics Calculations
+    z_map = {"Ground": 0.0, "Floor 1": 4.0, "Floor 2": 8.0} # Representing meters in height
+    z_start = z_map[start_floor]
+    z_end = z_map[target_floor]
+    distance = abs(z_end - z_start)
+    
+    base_speed = 2.5 # Ideal m/s empty
+    speed_penalty = pax_load * 0.08 # Lose 0.08 m/s per passenger due to motor strain
+    actual_speed = max(0.5, base_speed - speed_penalty)
+    travel_time = distance / actual_speed if distance > 0 else 0
     
     sim_vib = 15 + (pax_load * 2.2) 
-    vib_color = 'red' if sim_vib > vib_thresh else 'orange' if sim_vib > vib_thresh - 15 else 'green'
+    vib_color = 'red' if sim_vib > vib_thresh else 'orange' if sim_vib > vib_thresh - 15 else '#10b981'
+
+    st.markdown("""<div class="metric-card"><h4>⏱️ Live Physics Telemetry</h4></div>""", unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Distance to Travel", f"{distance} meters")
+    m2.metric("Actual Speed", f"{actual_speed:.2f} m/s", delta=f"-{speed_penalty:.2f} m/s (Load Penalty)", delta_color="inverse")
+    m3.metric("Est. Travel Time", f"{travel_time:.1f} seconds")
+    m4.metric("Mechanical Strain", f"{sim_vib:.1f} Hz")
 
     fig_3d = go.Figure()
-    # Shaft
-    fig_3d.add_trace(go.Mesh3d(x=[-2, 2, 2, -2, -2, 2, 2, -2], y=[-2, -2, 2, 2, -2, -2, 2, 2], z=[0, 0, 0, 0, 1.5, 1.5, 1.5, 1.5], alphahull=1, opacity=0.05, color='white'))
-    
-    # Floors
-    for z_val, f_name in zip([0.3, 0.6, 0.9], ['Ground', 'Floor 1', 'Floor 2']):
-        plane_color = 'cyan' if z_val == current_z else 'grey'
-        fig_3d.add_trace(go.Surface(x=[[-2, 2], [-2, 2]], y=[[-2, -2], [2, 2]], z=[[z_val, z_val], [z_val, z_val]], opacity=0.4 if z_val == current_z else 0.1, colorscale=[[0, plane_color], [1, plane_color]], showscale=False, name=f_name))
+    # Shaft & Floors
+    fig_3d.add_trace(go.Mesh3d(x=[-2, 2, 2, -2, -2, 2, 2, -2], y=[-2, -2, 2, 2, -2, -2, 2, 2], z=[0, 0, 0, 0, 8, 8, 8, 8], alphahull=1, opacity=0.05, color='white'))
+    for z_val, f_name in zip([0.0, 4.0, 8.0], ['Ground', 'Floor 1', 'Floor 2']):
+        plane_color = 'cyan' if z_val == z_end else 'grey'
+        fig_3d.add_trace(go.Surface(x=[[-2, 2], [-2, 2]], y=[[-2, -2], [2, 2]], z=[[z_val, z_val], [z_val, z_val]], opacity=0.3 if z_val == z_end else 0.1, colorscale=[[0, plane_color], [1, plane_color]], showscale=False, name=f_name))
 
-    # Elevator Car & Passengers
-    fig_3d.add_trace(go.Scatter3d(x=[0], y=[0], z=[current_z], mode='markers', marker=dict(size=40, color=vib_color, symbol='square'), name='Elevator Car'))
+    # Elevator Car
+    fig_3d.add_trace(go.Scatter3d(x=[0], y=[0], z=[z_end], mode='markers', marker=dict(size=40, color=vib_color, symbol='square'), name='Elevator Car'))
     
     if pax_load > 0:
-        fig_3d.add_trace(go.Scatter3d(x=np.random.uniform(-0.5, 0.5, pax_load), y=np.random.uniform(-0.5, 0.5, pax_load), z=[current_z]*pax_load, mode='markers', marker=dict(size=6, color='black'), name='Passengers'))
+        fig_3d.add_trace(go.Scatter3d(x=np.random.uniform(-0.5, 0.5, pax_load), y=np.random.uniform(-0.5, 0.5, pax_load), z=[z_end]*pax_load, mode='markers', marker=dict(size=6, color='black'), name='Passengers'))
     
-    fig_3d.update_layout(scene=dict(zaxis_range=[0, 1.5], zaxis_title='Vertical Height'), template="plotly_dark", height=600)
+    fig_3d.update_layout(scene=dict(zaxis_range=[0, 9], zaxis_title='Height (Meters)'), template="plotly_dark", height=500, margin=dict(l=0, r=0, b=0, t=0))
     st.plotly_chart(fig_3d, use_container_width=True)
 
 # ==================================================
-# MODULE 5: ML FAILURE PREDICTOR
+# MODULE 4: ADVANCED ML TRAINING
 # ==================================================
-elif nav == "🧠 5. ML Failure Predictor":
-    st.title("🧠 AI Failure Prediction Engine")
+elif nav == "🧠 4. Advanced ML Training":
+    st.title("🧠 AI Model Training & Feature Importance")
+    
+    st.write("The dataset has been balanced. The algorithm now learns from the mechanical relationship between Temperature, Load, and Cumulative Stress.")
     
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Logistic Regression (Risk Model)")
+        st.subheader("Random Forest Classifier")
         X = df[['Temperature', 'vibration', 'Load', 'Cumulative_Stress']]
         y = df['Failure']
         
         if y.sum() > 0:
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            clf = LogisticRegression(class_weight='balanced', max_iter=1000).fit(X_train, y_train)
-            prob = clf.predict_proba(X.iloc[[-1]])[0][1]
-            st.metric("Imminent Failure Probability", f"{prob*100:.1f}%")
+            # Using Random Forest to get Feature Importances
+            clf = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42).fit(X_train, y_train)
             
-            # Forecast
-            df_daily = df.set_index('Timestamp').resample('D')['vibration'].mean().dropna().reset_index()
-            df_daily['DayNum'] = np.arange(len(df_daily))
+            acc = accuracy_score(y_test, clf.predict(X_test))
+            prob = clf.predict_proba(X.iloc[[-1]])[0][1]
+            st.metric("Model Testing Accuracy", f"{acc*100:.1f}%")
+            st.metric("Current Imminent Failure Probability", f"{prob*100:.1f}%")
+            
+            st.write("### What causes failures?")
+            # Feature Importance Chart
+            importances = pd.DataFrame({'Feature': X.columns, 'Importance': clf.feature_importances_}).sort_values('Importance', ascending=True)
+            fig_imp = px.bar(importances, x='Importance', y='Feature', orientation='h', template="plotly_dark", color='Importance', color_continuous_scale='Reds')
+            st.plotly_chart(fig_imp, use_container_width=True)
+            
+        else:
+            st.error("Model failure: No breakdown events found in the dataset to train on.")
+
+    with col2:
+        st.subheader("7-Day Predictive Trend")
+        df_daily = df.set_index('Timestamp').resample('D')['vibration'].mean().dropna().reset_index()
+        df_daily['DayNum'] = np.arange(len(df_daily))
+        if len(df_daily) > 2:
             lr = LinearRegression().fit(df_daily[['DayNum']], df_daily['vibration'])
             future_vib = lr.predict(pd.DataFrame({'DayNum': np.arange(len(df_daily), len(df_daily)+7)}))
             fig_fc = px.line(x=range(1, 8), y=future_vib, template="plotly_dark", labels={'x':'Days Forward', 'y':'Predicted Vibration (Hz)'})
             st.plotly_chart(fig_fc, use_container_width=True)
-        else:
-            st.success("No historical failures available to train the model.")
-
-    with col2:
-        st.subheader("Automated Maintenance Schedule")
-        anomalies = len(df[df['Z_Score'] > 2])
-        days_until_maintenance = max(0, 30 - int(anomalies / 2))
-        
-        if days_until_maintenance <= 5:
-            st.markdown(f"""<div class="alert-card"><b>🚨 URGENT:</b> Scheduled maintenance recommended in <b>{days_until_maintenance} days</b>.</div>""", unsafe_allow_html=True)
-        else:
-            st.info(f"✅ System stable. Next routine maintenance in **{days_until_maintenance} days**.")
-            
-        st.write("### Editable AI Data Simulator")
-        st.write("Manually edit the fields below to simulate how the AI reacts to stress.")
-        editable_df = st.data_editor(df[['Temperature', 'vibration', 'Load']].tail(5), num_rows="dynamic")
-        if editable_df['vibration'].max() > vib_thresh:
-            st.error("🚨 Simulated data breached safety thresholds!")
 
 # ==================================================
-# MODULE 6: GEMINI AI
+# MODULE 5: GEMINI AI
 # ==================================================
-elif nav == "🤖 6. Gemini AI Terminal":
-    st.title("🤖 Gemini Advanced Analytics")
+elif nav == "🤖 5. Gemini AI Terminal":
+    st.title("🤖 Gemini Maintenance AI")
     
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
@@ -293,17 +254,17 @@ elif nav == "🤖 6. Gemini AI Terminal":
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         if "chat" not in st.session_state:
-            st.session_state.chat = [{"role": "assistant", "content": "I am the AI Architect. You can ask me to explain how the Calculus Integrals or Sine Waves work in this dashboard!"}]
+            st.session_state.chat = [{"role": "assistant", "content": "I am the AI Architect. Ask me about the Random Forest model or the physics speed penalties!"}]
 
         for msg in st.session_state.chat:
             with st.chat_message(msg["role"]): st.write(msg["content"])
 
-        if prompt := st.chat_input("E.g., Explain how you calculated the cumulative stress integral."):
+        if prompt := st.chat_input("E.g., Which feature causes the most elevator failures?"):
             st.session_state.chat.append({"role": "user", "content": prompt})
             with st.chat_message("user"): st.write(prompt)
 
             with st.chat_message("assistant"):
-                sys_prompt = f"Context: Avg Vib {df['vibration'].mean():.1f}Hz. Total Cumulative Stress: {df['Cumulative_Stress'].max():.0f}. User asks: {prompt}"
+                sys_prompt = f"Context: Avg Vib {df['vibration'].mean():.1f}Hz. Peak Load {df['Load'].max()} Pax. User asks: {prompt}"
                 response = model.generate_content(sys_prompt)
                 st.write(response.text)
                 st.session_state.chat.append({"role": "assistant", "content": response.text})
