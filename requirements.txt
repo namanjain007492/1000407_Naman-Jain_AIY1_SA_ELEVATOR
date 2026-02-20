@@ -4,3 +4,4 @@ plotly
 google-generativeai
 statsmodels
 scipy
+numpy
