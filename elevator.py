@@ -5,196 +5,196 @@ import plotly.express as px
 import plotly.graph_objects as go
 import google.generativeai as genai
 from scipy import stats
-import datetime
+import time
 
 # ==========================================
-# 1. PREMIUM UI & CSS (Features 17)
+# 1. ENTERPRISE UI & CSS
 # ==========================================
-st.set_page_config(page_title="Elevator OS | Enterprise", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Elevator OS | 3D Animated", page_icon="🏢", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #0b0f19; color: #e2e8f0; }
+    .main { background-color: #050505; color: #f8fafc; }
     div[data-testid="stMetric"] {
-        background-color: #1e293b; border: 1px solid #334155;
-        border-radius: 8px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        background-color: #0f172a; border: 1px solid #1e293b;
+        border-radius: 10px; padding: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
     }
-    .stDataFrame { border: 1px solid #334155; border-radius: 8px; }
-    h1, h2, h3 { color: #38bdf8; }
+    .tutorial-box { background-color: #164e63; padding: 20px; border-radius: 10px; border-left: 5px solid #06b6d4; margin-bottom: 20px;}
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. DATA ENGINE & ADVANCED MATH (Features 5, 6, 16, 19)
+# 2. DATA ENGINE & MATHEMATICAL MODELLING
 # ==========================================
 @st.cache_data
 def load_and_process_data():
     df = pd.read_csv("Elevator predictive-maintenance-dataset.csv").dropna(subset=['vibration'])
     
-    # Feature 5: Dynamic Health Score
+    # Mathematical Modelling: Volatility & Stability
     df['health_score'] = (100 - (df['vibration'] * 0.7 + (df['humidity'] - 70) * 1.5)).clip(0, 100)
-    
-    # Feature 16: Rolling Averages for Trend Forecasting
     df['vibration_rolling'] = df['vibration'].rolling(window=50).mean().fillna(df['vibration'])
+    df['volatility'] = df['vibration'].pct_change().fillna(0).abs() # Price-swing style math for sensor noise
     
-    # Feature 6: Z-Score Anomaly Detection
+    # Z-Score Anomaly Detection
     df['z_score'] = np.abs(stats.zscore(df['vibration']))
-    df['is_anomaly'] = df['z_score'] > 3  # 3 standard deviations
+    df['is_anomaly'] = df['z_score'] > 3
     
     return df
 
 try:
     df = load_and_process_data()
 except Exception as e:
-    st.error(f"Dataset missing! Please upload the CSV. Error: {e}")
+    st.error(f"Dataset missing! Upload the CSV. Error: {e}")
     st.stop()
 
 # ==========================================
-# 3. SIDEBAR (Features 12, 18)
+# 3. SIDEBAR NAVIGATION & CONTROLS
 # ==========================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=80)
-    st.title("Enterprise OS")
+    st.title("🏢 Smart Elevator OS")
+    st.markdown("---")
     
-    nav = st.radio("System Modules", [
-        "1. Live Command Center", 
-        "2. Raw Data & Exports", 
-        "3. 3D Digital Twin", 
-        "4. Advanced Analytics", 
-        "5. AI Maintenance Bot"
+    nav = st.radio("Select Module", [
+        "📖 How to Use This App (Demo)",
+        "🎛️ Live Command Center", 
+        "🎬 3D Animated Elevator", 
+        "📈 Volatility & Math Lab", 
+        "🤖 Gemini AI Assistant"
     ])
     
     st.markdown("---")
-    st.subheader("System Parameters")
-    vib_alert = st.slider("Vibration Alert Threshold", 10, 100, 40) # Feature 12
-    cost_per_failure = st.number_input("Est. Cost per Failure ($)", value=5000)
+    st.subheader("Global Parameters")
+    vib_alert = st.slider("Critical Vibration (Hz)", 10, 100, 40)
+    sim_speed = st.slider("Simulation Speed", 0.1, 2.0, 1.0)
 
 # ==========================================
-# MODULE 1: COMMAND CENTER (Features 1, 14, 15, 20)
+# MODULE 1: APP DEMO & TUTORIAL (NEW)
 # ==========================================
-if nav == "1. Live Command Center":
-    st.title("🎛️ Live Command Center")
+if nav == "📖 How to Use This App (Demo)":
+    st.title("Welcome to the Predictive Maintenance OS")
     
-    # KPIs (Feature 15: Delta Tracking)
+    st.markdown("""
+    <div class="tutorial-box">
+        <h3>🚀 Quick Start Guide</h3>
+        <p>This dashboard uses advanced mathematical functions and machine learning to detect patterns of stability and volatility in elevator sensor data. Here is how to use it:</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.subheader("1. Command Center")
+    st.write("View the real-time health of the elevator. The line charts use rolling averages to smooth out sudden jumps (random noise) from the actual long-term mechanical drift.")
+    
+    st.subheader("2. 3D Animated Elevator")
+    st.write("Watch the digital twin move! This module animates the `X3` (vertical) sensor data over time, showing you exactly how the elevator car moves up and down the shaft while changing color based on vibration intensity.")
+    
+    st.subheader("3. Volatility & Math Lab")
+    st.write("Explore the statistical relationship between environmental factors (like humidity) and mechanical wear. You can download the anomaly reports here.")
+    
+    st.subheader("4. AI Assistant")
+    st.write("Ask the built-in Google Gemini AI questions about the data. (Ensure your API key is in the Streamlit Secrets!).")
+    
+    if st.button("Start Exploring Data Now"):
+        st.success("Navigate using the sidebar on the left!")
+
+# ==========================================
+# MODULE 2: COMMAND CENTER & STREAMING
+# ==========================================
+elif nav == "🎛️ Live Command Center":
+    st.title("🎛️ Live Operational Dashboard")
+    
     c1, c2, c3, c4 = st.columns(4)
-    avg_health = df['health_score'].mean()
-    anomalies = df['is_anomaly'].sum()
-    
-    c1.metric("System Health", f"{avg_health:.1f}%", delta="-2.4% (7 days)")
-    c2.metric("Critical Anomalies", f"{anomalies:,}", delta=f"{anomalies} detected", delta_color="inverse")
-    c3.metric("Fleet Uptime", "99.8%", delta="Optimal") # Feature 14
+    c1.metric("System Health", f"{df['health_score'].mean():.1f}%")
+    c2.metric("Volatility Index", f"{df['volatility'].mean()*100:.2f}%")
+    c3.metric("Anomalies", f"{df['is_anomaly'].sum()}")
     c4.metric("Avg Vibration", f"{df['vibration'].mean():.1f} Hz")
     
-    # Feature 20: Actionable Alerts
-    if anomalies > 0:
-        st.error(f"⚠️ {anomalies} critical vibration anomalies detected. Immediate inspection recommended.")
-
-    st.subheader("Real-Time Sensor Pulse (Smoothed)")
-    fig_pulse = px.line(df.iloc[::30], x='ID', y=['vibration', 'vibration_rolling'], 
-                        template="plotly_dark", color_discrete_sequence=['#1e293b', '#38bdf8'])
-    fig_pulse.add_hline(y=vib_alert, line_dash="dash", line_color="#ef4444", annotation_text="Danger Zone")
-    st.plotly_chart(fig_pulse, use_container_width=True)
+    st.subheader("Live Sensor Pulse (With Volatility High/Low)")
+    
+    # Real-time simulation toggle
+    if st.checkbox("🟢 Enable Real-Time Data Streaming Simulation"):
+        placeholder = st.empty()
+        for i in range(100, 1000, 10):
+            with placeholder.container():
+                stream_df = df.iloc[i-100:i]
+                fig = px.line(stream_df, x='ID', y=['vibration', 'vibration_rolling'], template="plotly_dark")
+                st.plotly_chart(fig, use_container_width=True)
+            time.sleep(0.1 / sim_speed)
+    else:
+        fig_pulse = px.line(df.iloc[::25], x='ID', y=['vibration', 'vibration_rolling'], template="plotly_dark")
+        fig_pulse.add_hline(y=vib_alert, line_dash="dash", line_color="#ef4444")
+        st.plotly_chart(fig_pulse, use_container_width=True)
 
 # ==========================================
-# MODULE 2: RAW DATA & EXPORT (Features 1, 7, 8)
+# MODULE 3: 3D ANIMATED ELEVATOR (NEW)
 # ==========================================
-elif nav == "2. Raw Data & Exports":
-    st.title("📁 Data Inspector & Exports")
-    st.write("Full visibility into the raw hardware sensor logs.")
+elif nav == "🎬 3D Animated Elevator":
+    st.title("🎬 Animated 3D Digital Twin")
+    st.markdown("This simulates the elevator traveling up and down. The sphere represents the elevator car. **Press the 'Play' button on the timeline below to watch it move.**")
     
-    # Feature 1: Raw Data Visibility
-    st.dataframe(df.head(1000), use_container_width=True)
     
-    # Feature 7: Export Engine
-    st.subheader("Export Anomaly Reports")
-    anomaly_df = df[df['is_anomaly'] == True]
     
-    c1, c2 = st.columns(2)
-    c1.metric("Anomalies Ready for Export", len(anomaly_df))
+    # Create an animation sequence
+    # We take a continuous slice of 150 points to show a smooth up/down trip
+    anim_df = df.iloc[1000:1150].copy()
+    anim_df['TimeStep'] = range(len(anim_df))  # Create frame sequence
     
-    # Feature 8: Maintenance Cost Estimator
-    saved = len(anomaly_df) * (cost_per_failure * 0.15) # Assuming we save 15% by catching it early
-    c2.metric("Estimated Preventive Savings", f"${saved:,.2f}")
-    
-    csv = anomaly_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Critical Anomalies (CSV)",
-        data=csv,
-        file_name='elevator_anomalies.csv',
-        mime='text/csv',
+    fig_anim = px.scatter_3d(
+        anim_df, 
+        x='x1', y='x2', z='x3',
+        animation_frame='TimeStep', # THIS CREATES THE ANIMATION
+        color='vibration',
+        size='vibration',
+        size_max=30,
+        range_x=[df['x1'].min(), df['x1'].max()],
+        range_y=[df['x2'].min(), df['x2'].max()],
+        range_z=[df['x3'].min(), df['x3'].max()],
+        color_continuous_scale='Turbo',
+        template="plotly_dark",
+        height=750
     )
-
-# ==========================================
-# MODULE 3: 3D DIGITAL TWIN (Feature 2)
-# ==========================================
-elif nav == "3. 3D Digital Twin":
-    st.title("🧊 3D Smart Elevator Digital Twin")
-    st.markdown("A procedural 3D model representing the elevator shaft. The wireframe represents the physical space, and the scatter points represent the sensor coordinate data ($X1, X2, X3$) mapping where the vibration occurs.")
     
-    # Procedural 3D Shaft generation
-    shaft_x = [90, 170, 170, 90, 90, 170, 170, 90]
-    shaft_y = [-60, -60, 25, 25, -60, -60, 25, 25]
-    shaft_z = [0, 0, 0, 0, 1.5, 1.5, 1.5, 1.5]
-    
-    fig_3d = go.Figure()
-    
-    # Draw the Shaft Boundary (Wireframe)
-    fig_3d.add_trace(go.Mesh3d(
-        x=shaft_x, y=shaft_y, z=shaft_z,
-        alphahull=1, opacity=0.1, color='cyan', name='Shaft Boundary'
+    # Add the "Shaft" wireframe for visual context
+    fig_anim.add_trace(go.Scatter3d(
+        x=[120, 120, 120, 120], y=[-30, -30, -30, -30], 
+        z=[df['x3'].min(), df['x3'].max()],
+        mode='lines', line=dict(color='cyan', width=2), name="Guide Rail"
     ))
     
-    # Add Sensor Data inside the shaft
-    sample_df = df.sample(min(2000, len(df)))
-    fig_3d.add_trace(go.Scatter3d(
-        x=sample_df['x1'], y=sample_df['x2'], z=sample_df['x3'],
-        mode='markers',
-        marker=dict(
-            size=sample_df['vibration'] / 10,
-            color=sample_df['vibration'],
-            colorscale='Inferno',
-            opacity=0.8,
-            colorbar=dict(title="Vibration Hz")
-        ),
-        name='Sensor Reads'
+    fig_anim.update_layout(scene=dict(
+        xaxis_title='Lateral Sway (X1)', 
+        yaxis_title='Depth (X2)', 
+        zaxis_title='Vertical Position (X3) ↕️'
     ))
     
-    fig_3d.update_layout(
-        scene=dict(xaxis_title='X1 (Lateral)', yaxis_title='X2 (Depth)', zaxis_title='X3 (Vertical)'),
-        template="plotly_dark", height=800, margin=dict(l=0, r=0, b=0, t=0)
-    )
-    st.plotly_chart(fig_3d, use_container_width=True)
+    st.plotly_chart(fig_anim, use_container_width=True)
+    st.info("💡 **Observation:** As the animation plays, watch how the color changes (indicating vibration intensity) as the vertical position (Z-axis) changes.")
 
 # ==========================================
-# MODULE 4: ADVANCED ANALYTICS (Features 9, 10, 11, 13)
+# MODULE 4: VOLATILITY & MATH LAB
 # ==========================================
-elif nav == "4. Advanced Analytics":
-    st.title("🔬 Statistical Analysis Lab")
+elif nav == "📈 Volatility & Math Lab":
+    st.title("📈 Statistical Volatility Lab")
     
-    t1, t2, t3 = st.tabs(["Heatmap", "Regression", "Distributions"])
+    tab1, tab2 = st.tabs(["Volatility Heatmap", "Data Export Engine"])
     
-    with t1:
-        st.subheader("Sensor Correlation Matrix") # Feature 9
-        corr = df[['revolutions', 'humidity', 'vibration', 'x1', 'x2', 'x3']].corr()
+    with tab1:
+        st.write("Matrix showing patterns of stability and volatility across all variables.")
+        corr = df[['revolutions', 'humidity', 'vibration', 'volatility', 'x1', 'x3']].corr()
         fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale='RdBu_r', template="plotly_dark")
         st.plotly_chart(fig_corr, use_container_width=True)
         
-    with t2:
-        st.subheader("Environmental Impact (OLS)") # Feature 11
-        fig_ols = px.scatter(df.sample(2000), x='humidity', y='vibration', trendline="ols", 
-                             template="plotly_dark", trendline_color_override="#38bdf8")
-        st.plotly_chart(fig_ols, use_container_width=True)
+    with tab2:
+        st.subheader("Export Anomaly Data")
+        st.write("Filter and download data rows where mathematical thresholds were breached.")
+        anomaly_df = df[df['vibration'] > vib_alert]
+        st.dataframe(anomaly_df.head(50), use_container_width=True)
         
-    with t3:
-        st.subheader("Internal Sensor Variances") # Feature 13
-        df_melt = df[['x1', 'x2', 'x3']].melt()
-        fig_box = px.box(df_melt, x='variable', y='value', color='variable', template="plotly_dark")
-        st.plotly_chart(fig_box, use_container_width=True)
+        csv = anomaly_df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download Critical Logs (CSV)", data=csv, file_name='volatility_spikes.csv', mime='text/csv')
 
 # ==========================================
-# MODULE 5: AI MAINTENANCE BOT (Features 3, 17)
+# MODULE 5: AI ASSISTANT
 # ==========================================
-elif nav == "5. AI Maintenance Bot":
+elif nav == "🤖 Gemini AI Assistant":
     st.title("🤖 Gemini Enterprise Assistant")
     
     if "GOOGLE_API_KEY" not in st.secrets:
@@ -203,21 +203,18 @@ elif nav == "5. AI Maintenance Bot":
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
         model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Feature 17: Maintenance Predictor Logic fed to AI
-        next_maint = datetime.date.today() + datetime.timedelta(days=int(df['health_score'].mean() / 2))
-        
         if "chat" not in st.session_state:
-            st.session_state.chat = [{"role": "assistant", "content": "I am connected to the Elevator's live sensor array. Ask me anything."}]
+            st.session_state.chat = [{"role": "assistant", "content": "I am connected to the dataset. Ask me to calculate ROI, analyze volatility, or suggest repairs."}]
 
         for msg in st.session_state.chat:
             with st.chat_message(msg["role"]): st.write(msg["content"])
 
-        if prompt := st.chat_input("E.g., Based on the data, what part should we inspect?"):
+        if prompt := st.chat_input("E.g., What causes high volatility in the Z-axis?"):
             st.session_state.chat.append({"role": "user", "content": prompt})
             with st.chat_message("user"): st.write(prompt)
 
             with st.chat_message("assistant"):
-                sys_prompt = f"Data context: Avg Vib {df['vibration'].mean():.1f}Hz, {df['is_anomaly'].sum()} anomalies. Projected maintenance date: {next_maint}. User asks: {prompt}"
+                sys_prompt = f"Data context: Avg Vib {df['vibration'].mean():.1f}Hz, Volatility {df['volatility'].mean()*100:.2f}%. User asks: {prompt}"
                 response = model.generate_content(sys_prompt)
                 st.write(response.text)
                 st.session_state.chat.append({"role": "assistant", "content": response.text})
