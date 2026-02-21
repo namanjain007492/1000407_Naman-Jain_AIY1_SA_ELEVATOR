@@ -34,7 +34,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==================================================
-# 2. DATA ENGINEERING & FA-2 MATH
+# 2. DATA ENGINEERING & MATH
 # ==================================================
 @st.cache_data
 def load_and_preprocess():
@@ -54,7 +54,7 @@ def load_and_preprocess():
     risk_threshold = df['Risk_Factor'].quantile(0.96) 
     df['Failure'] = (df['Risk_Factor'] > risk_threshold).astype(int)
     
-    # FA-2 Math Integrations (Sine, Calculus, Volatility)
+    #  Math Integrations (Sine, Calculus, Volatility)
     t = np.arange(len(df))
     df['Ideal_Resonance'] = 20 + 15 * np.sin(2 * np.pi * 0.05 * t) # Sine Wave
     
@@ -89,7 +89,7 @@ with st.sidebar:
     
     nav = st.radio("Select Module", [
         "📊 1. Core Visualizations",
-        "📐 2. FA-2 Mathematics Engine",
+        "📐 2. Mathematics Engine",
         "🧊 3. 3D Speed & Physics",
         "🧠 4. ML Failure Predictor",
         "🤖 5. Gemini AI Chat"
@@ -129,10 +129,10 @@ if nav == "📊 1. Core Visualizations":
         st.plotly_chart(fig_heat, use_container_width=True)
 
 # ==================================================
-# MODULE 2: FA-2 MATHEMATICS ENGINE
+# MODULE 2: MATHEMATICS ENGINE
 # ==================================================
-elif nav == "📐 2. FA-2 Mathematics Engine":
-    st.title("📐 Mathematical Algorithms (FA-2)")
+elif nav == "📐 2. Mathematics Engine":
+    st.title("📐 Mathematical Algorithms")
     
     st.markdown("""
     <div class="fa2-card">
