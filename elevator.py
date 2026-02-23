@@ -41,12 +41,11 @@ def load_and_clean_data():
         st.error("⚠️ Dataset not found! Please ensure 'Elevator predictive-maintenance-dataset.csv' is in the exact same folder.")
         st.stop()
         
-    # Clean Data
     clean_df = raw_df.dropna().drop_duplicates().copy()
     
     # Mathematical Modeling (FA-2 Rubric)
     t = np.arange(len(clean_df))
-    clean_df['Ideal_Resonance'] = 20 + 15 * np.sin(2 * np.pi * 0.05 * t) # Sine Wave
+    clean_df['Ideal_Resonance'] = 20 + 15 * np.sin(2 * np.pi * 0.05 * t) 
     
     if cumulative_trapezoid is not None:
         clean_df['Cumulative_Stress'] = cumulative_trapezoid(clean_df['vibration'], initial=0) * 0.1
@@ -56,10 +55,10 @@ def load_and_clean_data():
     return raw_df, clean_df
 
 raw_df, df = load_and_clean_data()
-plot_df = df.iloc[::10].copy() if len(df) > 10000 else df.copy() # Downsample for visual performance
+plot_df = df.iloc[::10].copy() if len(df) > 10000 else df.copy() 
 
 # ==================================================
-# SIDEBAR NAVIGATION
+# SIDEBAR NAVIGATION & SECRETS HANDLING
 # ==================================================
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=60)
@@ -75,9 +74,14 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("🔑 AI Integration")
-    api_key = st.secrets.get("GEMINI_API_KEY", "")
-    if not api_key:
-        api_key = st.text_input("Enter Gemini API Key:", type="password")
+    
+    # SECURE API KEY FETCHING FROM st.secrets
+    try:
+        api_key = st.secrets["GEMINI_API_KEY"]
+        st.success("✅ API Key securely loaded from secrets!")
+    except (KeyError, FileNotFoundError):
+        st.error("⚠️ GEMINI_API_KEY not found! Please add it to your .streamlit/secrets.toml file or Streamlit Cloud Secrets.")
+        api_key = None
 
 # ==================================================
 # MODULE 1: PROJECT OVERVIEW
@@ -117,7 +121,6 @@ elif nav == "🧹 Data Processing":
         st.subheader("Raw Data Assessment")
         st.write(f"Initial Shape: **{raw_df.shape[0]:,} rows** × **{raw_df.shape[1]} columns**.")
         st.dataframe(raw_df.head(), use_container_width=True)
-        
         st.write("**Missing Values:**")
         st.dataframe(raw_df.isnull().sum().reset_index().rename(columns={"index": "Sensor", 0: "Missing Count"}), use_container_width=True)
 
@@ -128,7 +131,7 @@ elif nav == "🧹 Data Processing":
         st.success("✅ Data is processed and ready for visualization and physics modeling.")
 
 # ==================================================
-# MODULE 3: TELEMETRY VISUALIZATIONS (With FA-2 Math)
+# MODULE 3: TELEMETRY VISUALIZATIONS
 # ==================================================
 elif nav == "📊 Telemetry Visualizations":
     st.title("📊 Telemetry & Diagnostics")
@@ -136,24 +139,20 @@ elif nav == "📊 Telemetry Visualizations":
     t_viz, t_math = st.tabs(["Data Explorations", "Mathematical Modeling"])
     
     with t_viz:
-        # 1. Line Plot
         st.subheader("1. Time Series of Vibration")
         fig_line = px.line(plot_df, x='ID', y='vibration', template="plotly_dark", color_discrete_sequence=['#38bdf8'])
         st.plotly_chart(fig_line, use_container_width=True)
         
         c1, c2 = st.columns(2)
-        # 2. Histogram
         with c1:
             st.subheader("2. Stress Factor Distributions")
             st.plotly_chart(px.histogram(plot_df, x='humidity', nbins=40, template="plotly_dark", color_discrete_sequence=['#10b981'], title="Humidity"), use_container_width=True)
             st.plotly_chart(px.histogram(plot_df, x='revolutions', nbins=40, template="plotly_dark", color_discrete_sequence=['#f59e0b'], title="Revolutions"), use_container_width=True)
 
-        # 3. Scatter Plot
         with c2:
             st.subheader("3. Revolutions vs Vibration")
             st.plotly_chart(px.scatter(plot_df, x='revolutions', y='vibration', opacity=0.5, template="plotly_dark", color='vibration', color_continuous_scale='Reds'), use_container_width=True)
             
-        # 4. Box Plot & Heatmap
         st.subheader("4. Sensor Outliers (x1-x5)")
         df_melted = plot_df[['x1', 'x2', 'x3', 'x4', 'x5']].melt(var_name="Sensor", value_name="Reading")
         st.plotly_chart(px.box(df_melted, x="Sensor", y="Reading", color="Sensor", template="plotly_dark"), use_container_width=True)
@@ -193,44 +192,34 @@ elif nav == "🧊 Physics & Speed Simulator":
     target_floor = c2.selectbox("Destination Floor:", ["Ground", "Floor 1", "Floor 2"], index=2)
     pax_load = st.slider("Board Passengers:", 0, 20, 8)
     
-    # Physics Calculations
-    z_map = {"Ground": 0.0, "Floor 1": 4.0, "Floor 2": 8.0} # Height in meters
+    z_map = {"Ground": 0.0, "Floor 1": 4.0, "Floor 2": 8.0}
     z_start = z_map[start_floor]
     z_end = z_map[target_floor]
     distance = abs(z_end - z_start)
     
-    # Speed and weight logic
-    base_speed = 2.5 # Ideal speed empty
-    speed_penalty = pax_load * 0.09 # Lose speed per passenger
+    base_speed = 2.5 
+    speed_penalty = pax_load * 0.09 
     actual_speed = max(0.5, base_speed - speed_penalty)
     travel_time = distance / actual_speed if distance > 0 else 0
     
-    # Strain logic
     sim_vib = 15 + (pax_load * 2.5) 
     vib_color = 'red' if sim_vib > 50 else 'orange' if sim_vib > 35 else '#10b981'
 
-    # Metrics Display
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Distance to Travel", f"{distance} meters")
     m2.metric("Actual Speed", f"{actual_speed:.2f} m/s", delta=f"-{speed_penalty:.2f} m/s (Weight Penalty)", delta_color="inverse")
     m3.metric("Est. Travel Time", f"{travel_time:.1f} sec")
     m4.metric("Mechanical Strain", f"{sim_vib:.1f} Hz")
 
-    # 3D Visualizer
     fig_3d = go.Figure()
-    
-    # Draw Shaft
     fig_3d.add_trace(go.Mesh3d(x=[-2, 2, 2, -2, -2, 2, 2, -2], y=[-2, -2, 2, 2, -2, -2, 2, 2], z=[0, 0, 0, 0, 8, 8, 8, 8], alphahull=1, opacity=0.05, color='white'))
     
-    # Draw Floors
     for z_val, f_name in zip([0.0, 4.0, 8.0], ['Ground', 'Floor 1', 'Floor 2']):
         plane_color = 'cyan' if z_val == z_end else 'grey'
         fig_3d.add_trace(go.Surface(x=[[-2, 2], [-2, 2]], y=[[-2, -2], [2, 2]], z=[[z_val, z_val], [z_val, z_val]], opacity=0.3 if z_val == z_end else 0.1, colorscale=[[0, plane_color], [1, plane_color]], showscale=False))
 
-    # Draw Elevator Car at Destination
     fig_3d.add_trace(go.Scatter3d(x=[0], y=[0], z=[z_end], mode='markers', marker=dict(size=40, color=vib_color, symbol='square'), name='Elevator Car'))
     
-    # Draw Passengers
     if pax_load > 0:
         fig_3d.add_trace(go.Scatter3d(x=np.random.uniform(-0.5, 0.5, pax_load), y=np.random.uniform(-0.5, 0.5, pax_load), z=[z_end]*pax_load, mode='markers', marker=dict(size=6, color='black'), name='Passengers'))
     
@@ -248,7 +237,7 @@ elif nav == "💡 Insights & GenAI":
         <h3>🎯 Key Insights</h3>
         <ul>
             <li><b>Usage Drives Wear:</b> Positive correlation between door revolutions and vibration proves mechanical fatigue.</li>
-            <li><b>Environmental Impact:</b> Humidity correlates with increased vibration over time, amplifying stress (friction/condensation).</li>
+            <li><b>Environmental Impact:</b> Humidity correlates with increased vibration over time, amplifying stress.</li>
             <li><b>Anomaly Detection:</b> Severe outliers in sensors x1-x5 during high-vibration events allow us to pinpoint spatial failure points.</li>
             <li><b>Speed Degradation:</b> Physics models show passenger load exponentially decreases motor speed while increasing vibrational strain.</li>
         </ul>
@@ -288,6 +277,6 @@ elif nav == "💡 Insights & GenAI":
                         st.write(response.text)
                     st.session_state.chat_history.append({"role": "assistant", "content": response.text})
         except Exception as e:
-            st.error(f"API Error: {e}")
+            st.error(f"API Connection Error: {e}")
     else:
-        st.warning("⚠️ Enter your Gemini API Key in the sidebar to activate the AI Chatbot.")
+        st.warning("⚠️ Application is waiting for GEMINI_API_KEY in the secrets configuration to activate the AI Chatbot.")
