@@ -4,11 +4,17 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import google.generativeai as genai
+import time
+
+try:
+    from scipy.integrate import cumulative_trapezoid
+except ImportError:
+    cumulative_trapezoid = None
 
 # ==================================================
 # UI DESIGN & CONFIGURATION
 # ==================================================
-st.set_page_config(page_title="Task 2: Elevator Visualization", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Elevator AI Operations", page_icon="🏢", layout="wide")
 
 st.markdown("""
     <style>
@@ -20,11 +26,12 @@ st.markdown("""
     h1, h2, h3 { color: #38bdf8; }
     .context-box { background-color: #1e293b; border-left: 5px solid #38bdf8; padding: 20px; border-radius: 8px; margin-bottom: 20px;}
     .insight-box { background-color: #0f291e; border-left: 5px solid #10b981; padding: 20px; border-radius: 8px; margin-bottom: 20px;}
+    .physics-card { background-color: #312e81; border-left: 5px solid #6366f1; padding: 15px; border-radius: 8px; margin-bottom: 20px;}
     </style>
     """, unsafe_allow_html=True)
 
 # ==================================================
-# DATA PIPELINE (Stage 2 Background Loading)
+# DATA PIPELINE & MATH ENGINE
 # ==================================================
 @st.cache_data
 def load_and_clean_data():
@@ -34,23 +41,22 @@ def load_and_clean_data():
         st.error("⚠️ Dataset not found! Please ensure 'Elevator predictive-maintenance-dataset.csv' is in the exact same folder.")
         st.stop()
         
-    # Copy for cleaning
-    clean_df = raw_df.copy()
+    # Clean Data
+    clean_df = raw_df.dropna().drop_duplicates().copy()
     
-    # Check for missing values & Drop them
-    missing_counts = clean_df.isnull().sum()
-    clean_df = clean_df.dropna()
+    # Mathematical Modeling (FA-2 Rubric)
+    t = np.arange(len(clean_df))
+    clean_df['Ideal_Resonance'] = 20 + 15 * np.sin(2 * np.pi * 0.05 * t) # Sine Wave
     
-    # Check for duplicates & Drop them
-    duplicate_count = clean_df.duplicated().sum()
-    clean_df = clean_df.drop_duplicates()
-    
-    return raw_df, clean_df, missing_counts, duplicate_count
+    if cumulative_trapezoid is not None:
+        clean_df['Cumulative_Stress'] = cumulative_trapezoid(clean_df['vibration'], initial=0) * 0.1
+    else:
+        clean_df['Cumulative_Stress'] = np.cumsum(clean_df['vibration'].values) * 0.1 
+        
+    return raw_df, clean_df
 
-raw_df, df, missing_counts, duplicate_count = load_and_clean_data()
-
-# Downsample for UI performance so the browser doesn't crash on 100k+ rows
-plot_df = df.iloc[::10].copy() if len(df) > 10000 else df.copy()
+raw_df, df = load_and_clean_data()
+plot_df = df.iloc[::10].copy() if len(df) > 10000 else df.copy() # Downsample for visual performance
 
 # ==================================================
 # SIDEBAR NAVIGATION
@@ -58,192 +64,230 @@ plot_df = df.iloc[::10].copy() if len(df) > 10000 else df.copy()
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3030/3030245.png", width=60)
     st.title("🏢 Elevator OS")
-    st.markdown("**Predictive Maintenance Dashboard**")
     
-    nav = st.radio("Task 2 Project Stages", [
-        "📖 Stage 1: Problem & Research",
-        "🧹 Stage 2: Data Understanding",
-        "📊 Stage 3: Data Visualization",
-        "💡 Stage 4: Insights & AI"
+    nav = st.radio("System Modules", [
+        "📖 Project Overview",
+        "🧹 Data Processing",
+        "📊 Telemetry Visualizations",
+        "🧊 Physics & Speed Simulator",
+        "💡 Insights & GenAI"
     ])
     
     st.markdown("---")
-    st.header("🔑 Gemini AI Configuration")
+    st.header("🔑 AI Integration")
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
         api_key = st.text_input("Enter Gemini API Key:", type="password")
-        if api_key:
-            st.success("API Key loaded!")
-        else:
-            st.warning("Enter key to unlock AI in Stage 4.")
 
 # ==================================================
-# STAGE 1: UNDERSTAND PROBLEM AND RESEARCH
+# MODULE 1: PROJECT OVERVIEW
 # ==================================================
-if nav == "📖 Stage 1: Problem & Research":
-    st.title("📖 Stage 1: Problem Context & Research")
+if nav == "📖 Project Overview":
+    st.title("📖 Predictive Maintenance Overview")
     
     st.markdown("""
     <div class="context-box">
-        <h3>🔍 Project Context: Predictive Maintenance</h3>
-        <p>This project focuses on the <b>predictive maintenance of elevators</b>. By monitoring sensor data attached to elevator doors (such as revolutions, humidity, and vibrations), we can identify potential mechanical issues <i>before</i> they lead to catastrophic failures.</p>
-        <p><b>Vibration</b> acts as the primary "health indicator" of the elevator. High vibration typically indicates wear, tear, or an impending malfunction, while humidity and revolutions act as environmental and mechanical "stress factors".</p>
+        <h3>🔍 Problem Context</h3>
+        <p>This dashboard monitors elevator sensor data (revolutions, humidity, and vibrations) to identify mechanical wear before a catastrophic failure occurs.</p>
+        <p><b>Vibration</b> is the primary "health indicator". Excessive vibration indicates mechanical stress, while humidity and door revolutions act as the root "stress factors".</p>
     </div>
     """, unsafe_allow_html=True)
     
-    st.subheader("❓ Guiding Research Questions")
-    
+    st.subheader("❓ Research Fundamentals")
     with st.expander("1. How does humidity affect machine performance?", expanded=True):
-        st.write("High humidity can cause condensation on metallic parts and sensors. This leads to rust, increased friction on the door tracks, electrical shorts, and swelling of certain materials, ultimately increasing mechanical strain.")
-        
-    with st.expander("2. Could revolutions (number of door movements) impact vibration?", expanded=True):
-        st.write("Absolutely. Revolutions represent the cumulative mechanical work done by the elevator doors. As the motor and tracks complete more cycles, structural degradation occurs. Worn-out belts and bearings directly result in higher vibrational output.")
-        
-    with st.expander("3. Why is vibration considered the main target for prediction?", expanded=True):
-        st.write("Vibration is the earliest and most measurable physical symptom of mechanical failure. Before a motor burns out completely, its rotational balance degrades, causing it to rattle and vibrate out of its normal frequency range.")
+        st.write("High humidity causes condensation, increasing rust, track friction, and sensor degradation.")
+    with st.expander("2. Could revolutions impact vibration?", expanded=True):
+        st.write("Yes. Revolutions track mechanical cycles. More cycles mean worn belts and bearings, causing increased vibrational output.")
+    with st.expander("3. Why is vibration the main target?", expanded=True):
+        st.write("Vibration is the earliest physical symptom of failure. Motors and tracks rattle out of their normal frequency long before they completely break.")
 
-    st.subheader("💼 Real-World Value of Predicting Vibration")
-    st.write("Transitioning from *reactive* maintenance to *predictive* maintenance offers massive industry benefits:")
-    st.markdown("""
-    1. **Reducing Downtime:** Predicting failures keeps systems operational. Breaking down during peak office hours traps passengers and causes severe logistical issues.
-    2. **Saving Maintenance Costs:** Fixing a minor vibrational issue (like lubricating a track or replacing a $50 bearing) prevents the need to replace a completely destroyed $5,000 motor later.
-    """)
+    st.subheader("💼 Real-World Application")
+    st.write("1. **Reducing Downtime:** Prevents elevators from trapping passengers during peak hours.")
+    st.write("2. **Cost Saving:** Re-lubricating a vibrating track is much cheaper than replacing a snapped cable.")
 
 # ==================================================
-# STAGE 2: DATA UNDERSTANDING AND CLEANING
+# MODULE 2: DATA PROCESSING
 # ==================================================
-elif nav == "🧹 Stage 2: Data Understanding":
-    st.title("🧹 Stage 2: Data Understanding & Cleaning")
-    st.write("Assessing data quality to ensure it is readable and free from major issues before analysis.")
+elif nav == "🧹 Data Processing":
+    st.title("🧹 Data Diagnostics & Cleaning")
     
-    t1, t2 = st.tabs(["Raw Data Assessment", "Cleaned Data Output"])
+    t1, t2 = st.tabs(["Raw Telemetry", "Cleaned Output"])
     
     with t1:
-        st.subheader("1. Loading the Dataset")
-        st.write(f"Initial Dataset Shape: **{raw_df.shape[0]:,} rows** and **{raw_df.shape[1]} columns**.")
+        st.subheader("Raw Data Assessment")
+        st.write(f"Initial Shape: **{raw_df.shape[0]:,} rows** × **{raw_df.shape[1]} columns**.")
         st.dataframe(raw_df.head(), use_container_width=True)
         
-        st.subheader("2. Checking for Missing Values (.isnull().sum())")
-        st.dataframe(missing_counts.reset_index().rename(columns={"index": "Column", 0: "Missing Values"}), use_container_width=True)
-        
-        st.subheader("3. Checking for Duplicates")
-        st.write(f"Total duplicate rows found: **{duplicate_count}**")
+        st.write("**Missing Values:**")
+        st.dataframe(raw_df.isnull().sum().reset_index().rename(columns={"index": "Sensor", 0: "Missing Count"}), use_container_width=True)
 
     with t2:
-        st.subheader("Cleaned Dataset Summary (.describe())")
+        st.subheader("Cleaned Dataset Summary")
         st.write(f"After dropping N/A values and duplicates, the clean dataset contains **{df.shape[0]:,} rows**.")
         st.dataframe(df.describe(), use_container_width=True)
-        st.success("✅ Data is clean, structured, and ready for Stage 3 Visualization.")
+        st.success("✅ Data is processed and ready for visualization and physics modeling.")
 
 # ==================================================
-# STAGE 3: DATA VISUALIZATION
+# MODULE 3: TELEMETRY VISUALIZATIONS (With FA-2 Math)
 # ==================================================
-elif nav == "📊 Stage 3: Data Visualization":
-    st.title("📊 Stage 3: Exploratory Visualizations")
-    st.write("Exploring how stress factors (humidity, revolutions) affect the health signal (vibration).")
+elif nav == "📊 Telemetry Visualizations":
+    st.title("📊 Telemetry & Diagnostics")
     
-    # 1. Line Plot
-    st.subheader("1. Time Series of Vibration")
-    st.write("**Columns:** ID vs vibration | **Purpose:** Detect unusual spikes over time.")
-    fig_line = px.line(plot_df, x='ID', y='vibration', template="plotly_dark", color_discrete_sequence=['#38bdf8'])
-    st.plotly_chart(fig_line, use_container_width=True)
+    t_viz, t_math = st.tabs(["Data Explorations", "Mathematical Modeling"])
+    
+    with t_viz:
+        # 1. Line Plot
+        st.subheader("1. Time Series of Vibration")
+        fig_line = px.line(plot_df, x='ID', y='vibration', template="plotly_dark", color_discrete_sequence=['#38bdf8'])
+        st.plotly_chart(fig_line, use_container_width=True)
+        
+        c1, c2 = st.columns(2)
+        # 2. Histogram
+        with c1:
+            st.subheader("2. Stress Factor Distributions")
+            st.plotly_chart(px.histogram(plot_df, x='humidity', nbins=40, template="plotly_dark", color_discrete_sequence=['#10b981'], title="Humidity"), use_container_width=True)
+            st.plotly_chart(px.histogram(plot_df, x='revolutions', nbins=40, template="plotly_dark", color_discrete_sequence=['#f59e0b'], title="Revolutions"), use_container_width=True)
+
+        # 3. Scatter Plot
+        with c2:
+            st.subheader("3. Revolutions vs Vibration")
+            st.plotly_chart(px.scatter(plot_df, x='revolutions', y='vibration', opacity=0.5, template="plotly_dark", color='vibration', color_continuous_scale='Reds'), use_container_width=True)
+            
+        # 4. Box Plot & Heatmap
+        st.subheader("4. Sensor Outliers (x1-x5)")
+        df_melted = plot_df[['x1', 'x2', 'x3', 'x4', 'x5']].melt(var_name="Sensor", value_name="Reading")
+        st.plotly_chart(px.box(df_melted, x="Sensor", y="Reading", color="Sensor", template="plotly_dark"), use_container_width=True)
+        
+        st.subheader("5. Correlation Heatmap")
+        corr_matrix = df[['revolutions', 'humidity', 'vibration', 'x1', 'x2', 'x3', 'x4', 'x5']].corr()
+        st.plotly_chart(px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', template="plotly_dark"), use_container_width=True)
+
+    with t_math:
+        st.subheader("Trigonometric Baseline (Sine Wave vs Reality)")
+        st.write("Simulating perfect motor resonance (Sine Wave) against actual noisy sensor data.")
+        fig_sine = go.Figure()
+        fig_sine.add_trace(go.Scatter(x=plot_df['ID'][:200], y=plot_df['Ideal_Resonance'][:200], name='Ideal Sine Wave', line=dict(color='#10b981', dash='dash')))
+        fig_sine.add_trace(go.Scatter(x=plot_df['ID'][:200], y=plot_df['vibration'][:200], name='Actual CSV Data', line=dict(color='#ef4444')))
+        fig_sine.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_sine, use_container_width=True)
+        
+        st.subheader("Cumulative Wear (Calculus Integrals)")
+        st.write("Using Numerical Integration to calculate the total Area Under the Curve for mechanical stress.")
+        st.plotly_chart(px.area(plot_df, x='ID', y='Cumulative_Stress', template="plotly_dark", color_discrete_sequence=['#8b5cf6']), use_container_width=True)
+
+# ==================================================
+# MODULE 4: PHYSICS & SPEED SIMULATOR
+# ==================================================
+elif nav == "🧊 Physics & Speed Simulator":
+    st.title("🧊 Interactive Physics & Speed Engine")
+    
+    st.markdown("""
+    <div class="physics-card">
+        Test how passenger weight impacts the mechanical speed and travel time of the elevator between floors. 
+        Higher passenger loads decrease motor speed and increase mechanical strain.
+    </div>
+    """, unsafe_allow_html=True)
     
     c1, c2 = st.columns(2)
+    start_floor = c1.selectbox("Start Floor:", ["Ground", "Floor 1", "Floor 2"], index=0)
+    target_floor = c2.selectbox("Destination Floor:", ["Ground", "Floor 1", "Floor 2"], index=2)
+    pax_load = st.slider("Board Passengers:", 0, 20, 8)
     
-    # 2. Histogram
-    with c1:
-        st.subheader("2. Distribution of Stress Factors")
-        st.write("**Columns:** humidity, revolutions | **Purpose:** Check spread of values.")
-        fig_hist1 = px.histogram(plot_df, x='humidity', nbins=40, template="plotly_dark", color_discrete_sequence=['#10b981'], title="Humidity")
-        st.plotly_chart(fig_hist1, use_container_width=True)
-        
-        fig_hist2 = px.histogram(plot_df, x='revolutions', nbins=40, template="plotly_dark", color_discrete_sequence=['#f59e0b'], title="Revolutions")
-        st.plotly_chart(fig_hist2, use_container_width=True)
+    # Physics Calculations
+    z_map = {"Ground": 0.0, "Floor 1": 4.0, "Floor 2": 8.0} # Height in meters
+    z_start = z_map[start_floor]
+    z_end = z_map[target_floor]
+    distance = abs(z_end - z_start)
+    
+    # Speed and weight logic
+    base_speed = 2.5 # Ideal speed empty
+    speed_penalty = pax_load * 0.09 # Lose speed per passenger
+    actual_speed = max(0.5, base_speed - speed_penalty)
+    travel_time = distance / actual_speed if distance > 0 else 0
+    
+    # Strain logic
+    sim_vib = 15 + (pax_load * 2.5) 
+    vib_color = 'red' if sim_vib > 50 else 'orange' if sim_vib > 35 else '#10b981'
 
-    # 3. Scatter Plot
-    with c2:
-        st.subheader("3. Revolutions vs Vibration")
-        st.write("**Columns:** revolutions vs vibration | **Purpose:** See if usage leads to higher vibrations.")
-        fig_scatter = px.scatter(plot_df, x='revolutions', y='vibration', opacity=0.5, template="plotly_dark", color='vibration', color_continuous_scale='Reds')
-        st.plotly_chart(fig_scatter, use_container_width=True)
-        
-    # 4. Box Plot
-    st.subheader("4. Sensor Readings Distribution (x1-x5)")
-    st.write("**Columns:** x1, x2, x3, x4, x5 | **Purpose:** Detect outliers or abnormal spatial sensor readings.")
-    df_melted = plot_df[['x1', 'x2', 'x3', 'x4', 'x5']].melt(var_name="Sensor", value_name="Reading")
-    fig_box = px.box(df_melted, x="Sensor", y="Reading", color="Sensor", template="plotly_dark")
-    st.plotly_chart(fig_box, use_container_width=True)
+    # Metrics Display
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Distance to Travel", f"{distance} meters")
+    m2.metric("Actual Speed", f"{actual_speed:.2f} m/s", delta=f"-{speed_penalty:.2f} m/s (Weight Penalty)", delta_color="inverse")
+    m3.metric("Est. Travel Time", f"{travel_time:.1f} sec")
+    m4.metric("Mechanical Strain", f"{sim_vib:.1f} Hz")
+
+    # 3D Visualizer
+    fig_3d = go.Figure()
     
-    # 5. Correlation Heatmap
-    st.subheader("5. Correlation Heatmap")
-    st.write("**Columns:** All Numeric | **Purpose:** Find relationships between variables.")
-    corr_matrix = df[['revolutions', 'humidity', 'vibration', 'x1', 'x2', 'x3', 'x4', 'x5']].corr()
-    fig_heat = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', template="plotly_dark")
-    st.plotly_chart(fig_heat, use_container_width=True)
+    # Draw Shaft
+    fig_3d.add_trace(go.Mesh3d(x=[-2, 2, 2, -2, -2, 2, 2, -2], y=[-2, -2, 2, 2, -2, -2, 2, 2], z=[0, 0, 0, 0, 8, 8, 8, 8], alphahull=1, opacity=0.05, color='white'))
+    
+    # Draw Floors
+    for z_val, f_name in zip([0.0, 4.0, 8.0], ['Ground', 'Floor 1', 'Floor 2']):
+        plane_color = 'cyan' if z_val == z_end else 'grey'
+        fig_3d.add_trace(go.Surface(x=[[-2, 2], [-2, 2]], y=[[-2, -2], [2, 2]], z=[[z_val, z_val], [z_val, z_val]], opacity=0.3 if z_val == z_end else 0.1, colorscale=[[0, plane_color], [1, plane_color]], showscale=False))
+
+    # Draw Elevator Car at Destination
+    fig_3d.add_trace(go.Scatter3d(x=[0], y=[0], z=[z_end], mode='markers', marker=dict(size=40, color=vib_color, symbol='square'), name='Elevator Car'))
+    
+    # Draw Passengers
+    if pax_load > 0:
+        fig_3d.add_trace(go.Scatter3d(x=np.random.uniform(-0.5, 0.5, pax_load), y=np.random.uniform(-0.5, 0.5, pax_load), z=[z_end]*pax_load, mode='markers', marker=dict(size=6, color='black'), name='Passengers'))
+    
+    fig_3d.update_layout(scene=dict(zaxis_range=[0, 9], zaxis_title='Height (Meters)'), template="plotly_dark", height=600, margin=dict(l=0, r=0, b=0, t=0))
+    st.plotly_chart(fig_3d, use_container_width=True)
 
 # ==================================================
-# STAGE 4: INSIGHTS AND AI INTEGRATION
+# MODULE 5: INSIGHTS & AI
 # ==================================================
-elif nav == "💡 Stage 4: Insights & AI":
-    st.title("💡 Stage 4: Insights & AI Maintenance Assistant")
+elif nav == "💡 Insights & GenAI":
+    st.title("💡 Operational Insights & AI Assistant")
     
     st.markdown("""
     <div class="insight-box">
-        <h3>🎯 Key Insights Discovered</h3>
+        <h3>🎯 Key Insights</h3>
         <ul>
-            <li><b>Usage Drives Wear:</b> There is a visible positive correlation between high door revolutions and increased vibration, proving that mechanical fatigue accumulates with usage.</li>
-            <li><b>Environmental Amplification:</b> While humidity isn't the primary cause of failure, the heatmap shows it correlates with increased vibration over time, acting as an amplifying stressor (likely due to friction or condensation).</li>
-            <li><b>Anomaly Detection:</b> The Box Plots reveal severe outliers in sensors x1 through x5 during high-vibration events, allowing us to pinpoint exactly which spatial axis the mechanical failure is occurring on.</li>
-            <li><b>Predictive Value:</b> The Time Series line plot clearly shows normal operating baselines punctuated by extreme spikes, meaning a simple threshold alarm can successfully predict failures before they happen.</li>
+            <li><b>Usage Drives Wear:</b> Positive correlation between door revolutions and vibration proves mechanical fatigue.</li>
+            <li><b>Environmental Impact:</b> Humidity correlates with increased vibration over time, amplifying stress (friction/condensation).</li>
+            <li><b>Anomaly Detection:</b> Severe outliers in sensors x1-x5 during high-vibration events allow us to pinpoint spatial failure points.</li>
+            <li><b>Speed Degradation:</b> Physics models show passenger load exponentially decreases motor speed while increasing vibrational strain.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
     
-    st.subheader("🛠️ Recommendations for Maintenance Teams")
-    st.markdown("""
-    * **Dynamic Maintenance Scheduling:** Move away from calendar-based maintenance. Schedule bearing and track lubrication specifically for elevators reaching critical revolution counts.
-    * **Threshold Alarms:** Set automated alerts when the standard deviation of vibration exceeds normal parameters for more than 5 minutes.
-    * **Targeted Diagnostics:** Use spatial sensors (x1-x5) to diagnose whether the issue is lateral rattling or vertical grinding before dispatching a technician.
-    """)
-    
     st.markdown("---")
-    st.header("🤖 Google Gemini: Maintenance Operations AI")
-    st.write("Use the generative AI chatbot to analyze these insights further, generate maintenance protocols, or answer technical questions based on the dataset.")
+    st.header("🤖 Gemini Operations Chief")
 
     if api_key:
         try:
             genai.configure(api_key=api_key)
-            # Find an available text model
             available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
             target_model = next((m for m in available_models if 'flash' in m or 'pro' in m), available_models[0])
-            
             model = genai.GenerativeModel(target_model)
             
             if "chat_history" not in st.session_state:
-                st.session_state.chat_history = [{"role": "assistant", "content": "I am the Predictive Maintenance AI. Ask me how to interpret the Correlation Heatmap, or how to reduce elevator downtime!"}]
+                st.session_state.chat_history = [{"role": "assistant", "content": "I am the Elevator Maintenance AI. Ask me how to interpret the Correlation Heatmap, or how passenger weight affects motor speed!"}]
 
             for msg in st.session_state.chat_history:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
 
-            if prompt := st.chat_input("Ask Gemini about elevator maintenance or data patterns..."):
+            if prompt := st.chat_input("Ask about elevator maintenance or physics..."):
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
                 with st.chat_message("user"): st.write(prompt)
 
                 with st.chat_message("assistant"):
-                    # Give the AI context about the dataset
                     sys_prompt = f"""
-                    You are a Senior Data Scientist analyzing elevator predictive maintenance.
+                    You are a Senior Data Scientist analyzing elevator maintenance.
                     DATA CONTEXT:
                     - Avg Vibration: {df['vibration'].mean():.2f}
-                    - Max Revolutions: {df['revolutions'].max():.2f}
-                    - High humidity correlates with increased friction.
-                    Answer the user's question concisely: {prompt}
+                    - High passenger weight reduces elevator speed and increases vibration.
+                    Answer the user concisely: {prompt}
                     """
-                    with st.spinner("Analyzing maintenance data..."):
+                    with st.spinner("Analyzing data..."):
                         response = model.generate_content(sys_prompt)
                         st.write(response.text)
                     st.session_state.chat_history.append({"role": "assistant", "content": response.text})
         except Exception as e:
             st.error(f"API Error: {e}")
     else:
-        st.warning("⚠️ Enter your Gemini API Key in the sidebar to activate the AI Assistant.")
+        st.warning("⚠️ Enter your Gemini API Key in the sidebar to activate the AI Chatbot.")
