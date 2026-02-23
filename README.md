@@ -1,5 +1,7 @@
 🏢 Elevator AI Operations
+
 Smart Predictive Maintenance System using Physics, Statistics & AI
+
 📌 Project Overview
 
 Elevator AI Operations is an advanced predictive maintenance dashboard built using Streamlit, combining:
@@ -243,7 +245,18 @@ It represents a complete digital twin predictive system.
 👨‍💻 Credits
 
 Name : Naman Jain
+
 Class : 11-IB
+
+Roll No: 1000407 
+
+Class Teacher: Mrs.syedalibeema s 
+
+Course : Mathematics in AI
+
+Project: Elevator AI operations
+
+School Name: Jain Vidyalaya
 
 Elevator Predictive Maintenance Dataset
 (Simulated industrial telemetry data)
