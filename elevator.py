@@ -4,8 +4,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import google.generativeai as genai
-import time
 
+# Safe import for SciPy Calculus Integrals
 try:
     from scipy.integrate import cumulative_trapezoid
 except ImportError:
@@ -25,8 +25,7 @@ st.markdown("""
     }
     h1, h2, h3 { color: #38bdf8; }
     .context-box { background-color: #1e293b; border-left: 5px solid #38bdf8; padding: 20px; border-radius: 8px; margin-bottom: 20px;}
-    .insight-box { background-color: #0f291e; border-left: 5px solid #10b981; padding: 20px; border-radius: 8px; margin-bottom: 20px;}
-    .physics-card { background-color: #312e81; border-left: 5px solid #6366f1; padding: 15px; border-radius: 8px; margin-bottom: 20px;}
+    .insight-box { background-color: #0f291e; border-left: 5px solid #10b981; padding: 15px; border-radius: 8px; margin-bottom: 15px;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -75,12 +74,11 @@ with st.sidebar:
     st.markdown("---")
     st.header("🔑 AI Integration")
     
-    # SECURE API KEY FETCHING FROM st.secrets
     try:
         api_key = st.secrets["GEMINI_API_KEY"]
         st.success("✅ API Key securely loaded from secrets!")
     except (KeyError, FileNotFoundError):
-        st.error("⚠️ GEMINI_API_KEY not found! Please add it to your .streamlit/secrets.toml file or Streamlit Cloud Secrets.")
+        st.error("⚠️ GEMINI_API_KEY not found! Please add it to your .streamlit/secrets.toml file.")
         api_key = None
 
 # ==================================================
@@ -105,23 +103,18 @@ if nav == "📖 Project Overview":
     with st.expander("3. Why is vibration the main target?", expanded=True):
         st.write("Vibration is the earliest physical symptom of failure. Motors and tracks rattle out of their normal frequency long before they completely break.")
 
-    st.subheader("💼 Real-World Application")
-    st.write("1. **Reducing Downtime:** Prevents elevators from trapping passengers during peak hours.")
-    st.write("2. **Cost Saving:** Re-lubricating a vibrating track is much cheaper than replacing a snapped cable.")
-
 # ==================================================
 # MODULE 2: DATA PROCESSING
 # ==================================================
 elif nav == "🧹 Data Processing":
     st.title("🧹 Data Diagnostics & Cleaning")
-    
     t1, t2 = st.tabs(["Raw Telemetry", "Cleaned Output"])
     
     with t1:
         st.subheader("Raw Data Assessment")
         st.write(f"Initial Shape: **{raw_df.shape[0]:,} rows** × **{raw_df.shape[1]} columns**.")
         st.dataframe(raw_df.head(), use_container_width=True)
-        st.write("**Missing Values:**")
+        st.write("**Missing Values Check:**")
         st.dataframe(raw_df.isnull().sum().reset_index().rename(columns={"index": "Sensor", 0: "Missing Count"}), use_container_width=True)
 
     with t2:
@@ -140,30 +133,35 @@ elif nav == "📊 Telemetry Visualizations":
     
     with t_viz:
         st.subheader("1. Time Series of Vibration")
+        st.info("💡 **What this graph represents:** This line chart tracks the elevator's vibration over time. Normal operations stay flat, while sudden vertical spikes indicate a mechanical jam, a struggling motor, or an object stuck in the door tracks.")
         fig_line = px.line(plot_df, x='ID', y='vibration', template="plotly_dark", color_discrete_sequence=['#38bdf8'])
         st.plotly_chart(fig_line, use_container_width=True)
         
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("2. Stress Factor Distributions")
-            st.plotly_chart(px.histogram(plot_df, x='humidity', nbins=40, template="plotly_dark", color_discrete_sequence=['#10b981'], title="Humidity"), use_container_width=True)
-            st.plotly_chart(px.histogram(plot_df, x='revolutions', nbins=40, template="plotly_dark", color_discrete_sequence=['#f59e0b'], title="Revolutions"), use_container_width=True)
+            st.info("💡 **What these histograms represent:** They show the most common environmental conditions. If humidity shifts heavily to the right, the elevator is operating in a dangerously damp environment, increasing rust risk.")
+            st.plotly_chart(px.histogram(plot_df, x='humidity', nbins=40, template="plotly_dark", color_discrete_sequence=['#10b981'], title="Humidity Distribution"), use_container_width=True)
+            st.plotly_chart(px.histogram(plot_df, x='revolutions', nbins=40, template="plotly_dark", color_discrete_sequence=['#f59e0b'], title="Revolutions Distribution"), use_container_width=True)
 
         with c2:
             st.subheader("3. Revolutions vs Vibration")
+            st.info("💡 **What this scatter plot represents:** This proves whether usage causes degradation. A cluster of dots moving upwards to the right confirms that higher motor revolutions directly result in higher, more dangerous vibrations.")
             st.plotly_chart(px.scatter(plot_df, x='revolutions', y='vibration', opacity=0.5, template="plotly_dark", color='vibration', color_continuous_scale='Reds'), use_container_width=True)
             
-        st.subheader("4. Sensor Outliers (x1-x5)")
+        st.subheader("4. Spatial Sensor Outliers (x1-x5)")
+        st.info("💡 **What this box plot represents:** Sensors x1 through x5 measure spatial movement. The dots floating above/below the boxes are 'outliers'. These tell technicians exactly which axis (vertical, lateral, depth) is rattling the most.")
         df_melted = plot_df[['x1', 'x2', 'x3', 'x4', 'x5']].melt(var_name="Sensor", value_name="Reading")
         st.plotly_chart(px.box(df_melted, x="Sensor", y="Reading", color="Sensor", template="plotly_dark"), use_container_width=True)
         
         st.subheader("5. Correlation Heatmap")
+        st.info("💡 **What this heatmap represents:** It shows mathematical relationships between all sensors. A positive number (red) means when one goes up, the other goes up. A high correlation between humidity and vibration means dampness is causing mechanical drag.")
         corr_matrix = df[['revolutions', 'humidity', 'vibration', 'x1', 'x2', 'x3', 'x4', 'x5']].corr()
         st.plotly_chart(px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', template="plotly_dark"), use_container_width=True)
 
     with t_math:
         st.subheader("Trigonometric Baseline (Sine Wave vs Reality)")
-        st.write("Simulating perfect motor resonance (Sine Wave) against actual noisy sensor data.")
+        st.info("💡 **What this graph represents:** The smooth green dashed line represents a perfectly healthy, ideal motor spinning smoothly (a pure Sine Wave). The erratic red line is the actual sensor data, showing how physical friction and noise distort perfect mechanical movement.")
         fig_sine = go.Figure()
         fig_sine.add_trace(go.Scatter(x=plot_df['ID'][:200], y=plot_df['Ideal_Resonance'][:200], name='Ideal Sine Wave', line=dict(color='#10b981', dash='dash')))
         fig_sine.add_trace(go.Scatter(x=plot_df['ID'][:200], y=plot_df['vibration'][:200], name='Actual CSV Data', line=dict(color='#ef4444')))
@@ -171,7 +169,7 @@ elif nav == "📊 Telemetry Visualizations":
         st.plotly_chart(fig_sine, use_container_width=True)
         
         st.subheader("Cumulative Wear (Calculus Integrals)")
-        st.write("Using Numerical Integration to calculate the total Area Under the Curve for mechanical stress.")
+        st.info("💡 **What this area chart represents:** Using calculus (Numerical Integration), this calculates the total Area Under the Curve of vibration over time. This metric represents the 'Cumulative Mechanical Stress'—how much total abuse the elevator has endured over its lifetime.")
         st.plotly_chart(px.area(plot_df, x='ID', y='Cumulative_Stress', template="plotly_dark", color_discrete_sequence=['#8b5cf6']), use_container_width=True)
 
 # ==================================================
@@ -180,17 +178,12 @@ elif nav == "📊 Telemetry Visualizations":
 elif nav == "🧊 Physics & Speed Simulator":
     st.title("🧊 Interactive Physics & Speed Engine")
     
-    st.markdown("""
-    <div class="physics-card">
-        Test how passenger weight impacts the mechanical speed and travel time of the elevator between floors. 
-        Higher passenger loads decrease motor speed and increase mechanical strain.
-    </div>
-    """, unsafe_allow_html=True)
+    st.info("💡 **What this module represents:** This acts as a digital twin. It simulates real-world physics, showing how boarding heavy passengers decreases the motor's operating speed (m/s) and dramatically increases the vibration/strain on the elevator cables.")
     
     c1, c2 = st.columns(2)
     start_floor = c1.selectbox("Start Floor:", ["Ground", "Floor 1", "Floor 2"], index=0)
     target_floor = c2.selectbox("Destination Floor:", ["Ground", "Floor 1", "Floor 2"], index=2)
-    pax_load = st.slider("Board Passengers:", 0, 20, 8)
+    pax_load = st.slider("Board Passengers (Weight):", 0, 20, 8)
     
     z_map = {"Ground": 0.0, "Floor 1": 4.0, "Floor 2": 8.0}
     z_start = z_map[start_floor]
@@ -219,7 +212,6 @@ elif nav == "🧊 Physics & Speed Simulator":
         fig_3d.add_trace(go.Surface(x=[[-2, 2], [-2, 2]], y=[[-2, -2], [2, 2]], z=[[z_val, z_val], [z_val, z_val]], opacity=0.3 if z_val == z_end else 0.1, colorscale=[[0, plane_color], [1, plane_color]], showscale=False))
 
     fig_3d.add_trace(go.Scatter3d(x=[0], y=[0], z=[z_end], mode='markers', marker=dict(size=40, color=vib_color, symbol='square'), name='Elevator Car'))
-    
     if pax_load > 0:
         fig_3d.add_trace(go.Scatter3d(x=np.random.uniform(-0.5, 0.5, pax_load), y=np.random.uniform(-0.5, 0.5, pax_load), z=[z_end]*pax_load, mode='markers', marker=dict(size=6, color='black'), name='Passengers'))
     
@@ -234,12 +226,11 @@ elif nav == "💡 Insights & GenAI":
     
     st.markdown("""
     <div class="insight-box">
-        <h3>🎯 Key Insights</h3>
+        <h3>🎯 Key Engineering Insights</h3>
         <ul>
             <li><b>Usage Drives Wear:</b> Positive correlation between door revolutions and vibration proves mechanical fatigue.</li>
             <li><b>Environmental Impact:</b> Humidity correlates with increased vibration over time, amplifying stress.</li>
             <li><b>Anomaly Detection:</b> Severe outliers in sensors x1-x5 during high-vibration events allow us to pinpoint spatial failure points.</li>
-            <li><b>Speed Degradation:</b> Physics models show passenger load exponentially decreases motor speed while increasing vibrational strain.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -255,7 +246,7 @@ elif nav == "💡 Insights & GenAI":
             model = genai.GenerativeModel(target_model)
             
             if "chat_history" not in st.session_state:
-                st.session_state.chat_history = [{"role": "assistant", "content": "I am the Elevator Maintenance AI. Ask me how to interpret the Correlation Heatmap, or how passenger weight affects motor speed!"}]
+                st.session_state.chat_history = [{"role": "assistant", "content": "I am the Elevator Maintenance AI. Ask me how to interpret any of the graphs on the Telemetry tab!"}]
 
             for msg in st.session_state.chat_history:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
@@ -265,18 +256,11 @@ elif nav == "💡 Insights & GenAI":
                 with st.chat_message("user"): st.write(prompt)
 
                 with st.chat_message("assistant"):
-                    sys_prompt = f"""
-                    You are a Senior Data Scientist analyzing elevator maintenance.
-                    DATA CONTEXT:
-                    - Avg Vibration: {df['vibration'].mean():.2f}
-                    - High passenger weight reduces elevator speed and increases vibration.
-                    Answer the user concisely: {prompt}
-                    """
-                    with st.spinner("Analyzing data..."):
-                        response = model.generate_content(sys_prompt)
-                        st.write(response.text)
+                    sys_prompt = f"Data context: Avg Vib {df['vibration'].mean():.1f}Hz. Answer concisely: {prompt}"
+                    response = model.generate_content(sys_prompt)
+                    st.write(response.text)
                     st.session_state.chat_history.append({"role": "assistant", "content": response.text})
         except Exception as e:
             st.error(f"API Connection Error: {e}")
     else:
-        st.warning("⚠️ Application is waiting for GEMINI_API_KEY in the secrets configuration to activate the AI Chatbot.")
+        st.warning("⚠️ Application is waiting for GEMINI_API_KEY in the secrets configuration.")
