@@ -122,6 +122,18 @@ elif nav == "🧹 Data Processing":
         st.write(f"After dropping N/A values and duplicates, the clean dataset contains **{df.shape[0]:,} rows**.")
         st.dataframe(df.describe(), use_container_width=True)
         st.success("✅ Data is processed and ready for visualization and physics modeling.")
+        
+        # --- NEW: DOWNLOAD CLEANED DATA BUTTON ---
+        st.markdown("---")
+        st.subheader("💾 Export Cleaned Dataset")
+        st.write("Download the sanitized dataset for external use or record keeping.")
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Cleaned Data (CSV)",
+            data=csv_data,
+            file_name="cleaned_elevator_data.csv",
+            mime="text/csv"
+        )
 
 # ==================================================
 # MODULE 3: TELEMETRY VISUALIZATIONS
@@ -260,6 +272,22 @@ elif nav == "💡 Insights & GenAI":
                     response = model.generate_content(sys_prompt)
                     st.write(response.text)
                     st.session_state.chat_history.append({"role": "assistant", "content": response.text})
+            
+            # --- NEW: DOWNLOAD CHAT HISTORY BUTTON ---
+            if len(st.session_state.chat_history) > 1:
+                st.markdown("---")
+                chat_text = "Gemini Maintenance AI - Chat Log\n" + "="*40 + "\n\n"
+                for msg in st.session_state.chat_history:
+                    role_label = "🧑‍🔧 User" if msg["role"] == "user" else "🤖 AI Assistant"
+                    chat_text += f"{role_label}: {msg['content']}\n\n"
+                
+                st.download_button(
+                    label="📥 Download Chat Log (.txt)",
+                    data=chat_text.encode('utf-8'),
+                    file_name="gemini_maintenance_log.txt",
+                    mime="text/plain"
+                )
+                    
         except Exception as e:
             st.error(f"API Connection Error: {e}")
     else:
