@@ -5,7 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import google.generativeai as genai
 
-# Safe import for SciPy Calculus Integrals
+# Safe import for SciPy Calculus Integralsa
 try:
     from scipy.integrate import cumulative_trapezoid
 except ImportError:
