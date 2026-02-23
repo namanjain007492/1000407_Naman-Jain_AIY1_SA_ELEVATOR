@@ -248,9 +248,11 @@ Name : Naman Jain
 
 Class : 11-IB
 
-Roll No: 1000407 
+Registration Number: 1000407 
 
 Class Teacher: Mrs.syedalibeema s 
+
+CRS Name : Artificial Intelligence
 
 Course : Mathematics in AI
 
