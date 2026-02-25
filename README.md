@@ -1,3 +1,7 @@
+APP LINK : https://1000407naman-jainaiy1saelevator-5apdyy3rjcuszuylpdersn.streamlit.app/
+
+SCREENSHOT : https://drive.google.com/drive/folders/1Nl__gKKr6oSfFGiWk-MQ2g1XAlkpGJIZ?usp=sharing
+
 🏢 Elevator AI Operations
 
 Smart Predictive Maintenance System using Physics, Statistics & AI
